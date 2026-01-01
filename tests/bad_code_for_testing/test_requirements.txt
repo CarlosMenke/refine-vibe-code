@@ -1,0 +1,5 @@
+# Test requirements file
+requests>=2.25.0
+nonexistentpackage12345==1.0.0
+fake-malicious-pkg>=0.1.0
+openai>=1.0.0
