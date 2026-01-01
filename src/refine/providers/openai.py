@@ -16,10 +16,27 @@ class OpenAIProvider(LLMProvider):
     def is_available(self) -> bool:
         """Check if OpenAI/Google provider is available."""
         if self.config.llm.provider == "google":
-            api_key = self.config.llm.api_key or os.getenv("GOOGLE_API_KEY")
+            # Prioritize environment variable over config file
+            api_key = os.getenv("GOOGLE_API_KEY") or self.config.llm.api_key
         else:
-            api_key = self.config.llm.api_key or os.getenv("OPENAI_API_KEY")
-        return bool(api_key)
+            # Prioritize environment variable over config file
+            api_key = os.getenv("OPENAI_API_KEY") or self.config.llm.api_key
+
+        # Check if we have a real API key (not just a placeholder)
+        if not api_key:
+            return False
+
+        # Check for common placeholder patterns
+        placeholder_patterns = [
+            "sk-your-openai-api-key-here",
+            "your-openai-api-key-here",
+            "sk-...",
+            "your-google-api-key-here",
+            "your-google-api-key-here",  # Updated placeholder
+            "AQ.Ab8RN6KJZnkDbofE5cRd-3DZJYcmSleHvg-8N7do1FXdzfQ-8g",  # Old Google key
+        ]
+
+        return api_key not in placeholder_patterns and not api_key.startswith("sk-...")
 
     def analyze_code(self, prompt: str) -> str:
         """Analyze code using OpenAI/Google API."""
