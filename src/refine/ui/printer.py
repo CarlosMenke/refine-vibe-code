@@ -48,6 +48,12 @@ class Printer:
         else:
             self.console.print(message)
 
+    def print_file_status(self, message: str, file_path: Path) -> None:
+        """Print status message with a file path, converting to relative path."""
+        relative_path = self._get_relative_path(file_path)
+        full_message = f"{message} {relative_path}"
+        self.print_status(full_message)
+
     def print_warning(self, message: str) -> None:
         """Print warning message."""
         if self.output_format == "rich":
