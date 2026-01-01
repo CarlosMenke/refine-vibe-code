@@ -69,14 +69,36 @@ refine scan --exclude "node_modules/" --exclude "*.min.js"
 
 ### Configuration (optional but recommended)
 
-For advanced usage, create a `refine.toml` configuration file:
+Refine supports both **global** and **project-specific** configuration files for maximum flexibility.
+
+#### Global Configuration
+Set up global defaults that apply to all projects:
 
 ```bash
-# Generate a default config file
-refine init
+# Create global config in ~/.config/refine/refine.toml
+refine init --global
 ```
 
-Then edit `refine.toml` to customize:
+#### Project Configuration
+Create project-specific settings that override globals:
+
+```bash
+# Generate project config in current directory
+refine init
+
+# Or specify a custom path
+refine init --output my-config.toml
+```
+
+#### Configuration Priority
+Settings are merged in this order (highest to lowest priority):
+1. Environment variables (`REFINE_*`)
+2. Explicit config file (`--config path`)
+3. Project config (`./refine.toml` or auto-discovered)
+4. Global config (`~/.config/refine/refine.toml`)
+5. Built-in defaults
+
+Customize your `refine.toml` to configure:
 - Which checks to run
 - File patterns to include/exclude
 - LLM provider settings (OpenAI, Google Gemini)
