@@ -20,39 +20,6 @@ exclude_patterns = [
     "dist/"
 ]
 
-# Maximum file size to scan in bytes (1MB)
-max_file_size = 1048576
-
-# Maximum number of files to scan
-max_files = 1000
-
-[llm]
-# LLM provider to use (openai, google)
-
-# Base URL for API (optional, for custom endpoints)
-# base_url = "https://api.openai.com/v1"
-
-# === OpenAI Provider Configuration ===
-# provider = "openai"
-# model = "gpt-4o-mini"
-# api_key = "sk-your-openai-api-key-here"
-
-# === OpenAI Provider Configuration ===
-#provider = "openai"
-# model = "gpt-4o-mini"
-# api_key = "sk-your-openai-api-key-here"  # Uncomment and set your API key here
-
-# === Google Gemini Provider Configuration ===
-provider = "google"
-model = "gemini-2.0-flash-exp"
-api_key = "AQ.Ab8RN6KJZnkDbofE5cRd-3DZJYcmSleHvg-8N7do1FXdzfQ-8g"
-
-# Maximum tokens for LLM responses
-max_tokens = 1000
-
-# Timeout for LLM requests in seconds
-timeout = 30
-
 [checkers]
 # List of enabled checkers
 enabled = [
@@ -66,22 +33,3 @@ enabled = [
     "dangerous_ai_logic",
     "sql_injection",
 ]
-
-# Only run classical (AST-based) checkers
-classical_only = false
-
-# Only run LLM-based checkers
-llm_only = false
-
-[output]
-# Output format (rich, json, plain)
-format = "rich"
-
-# Enable verbose output
-verbose = false
-
-# Show suggested fixes
-show_fixes = true
-
-# Enable colored output
-color = true
