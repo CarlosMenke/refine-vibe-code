@@ -1,6 +1,6 @@
 """Pydantic models for configuration validation."""
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
@@ -31,7 +31,7 @@ class LLMConfig(BaseModel):
 
     provider: str = Field(
         default="openai",
-        description="LLM provider to use (openai, local)",
+        description="LLM provider to use (openai, google, local)",
     )
     model: str = Field(
         default="gpt-4",
@@ -70,6 +70,7 @@ class CheckersConfig(BaseModel):
             "boilerplate",
             "edge_cases",
             "naming_vibe",
+            "comment_quality",
         ],
         description="List of enabled checkers",
     )
@@ -112,19 +113,21 @@ class RefineConfig(BaseModel):
     checkers: CheckersConfig = Field(default_factory=CheckersConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
 
-    class Config:
-        """Pydantic configuration."""
-        env_prefix = "REFINE_"
-        env_nested_delimiter = "__"
+    model_config = ConfigDict(
+        env_prefix="REFINE_",
+        env_nested_delimiter="__",
+    )
 
-    @validator('llm')
+    @field_validator('llm')
+    @classmethod
     def validate_llm_config(cls, v):
         """Validate LLM configuration."""
-        if v.provider not in ["openai", "local"]:
+        if v.provider not in ["openai", "google", "local"]:
             raise ValueError(f"Unsupported LLM provider: {v.provider}")
         return v
 
-    @validator('output')
+    @field_validator('output')
+    @classmethod
     def validate_output_config(cls, v):
         """Validate output configuration."""
         if v.format not in ["rich", "json", "plain"]:
