@@ -81,6 +81,32 @@ def scan(
         if llm_only:
             config_data.checkers.llm_only = True
 
+        # Check LLM provider availability
+        from .providers import get_provider
+        provider = get_provider(config_data)
+        llm_available = provider.is_available()
+
+        if llm_only and not llm_available:
+            typer.echo(
+                "❌ Error: LLM-only mode requested but no LLM provider is available.\n"
+                "\nTo use LLM-based checkers, you need to configure an LLM provider:\n"
+                "\n1. For OpenAI: Set OPENAI_API_KEY environment variable or add api_key to refine.toml\n"
+                "2. For Google Gemini: Set GOOGLE_API_KEY environment variable, set provider = \"google\" and model = \"gemini-2.0-flash-exp\" in refine.toml\n"
+                "3. For local LLM: Install Ollama and set provider = \"local\" in refine.toml\n"
+                "\nRun 'uv run refine init' to generate a configuration file.",
+                err=True
+            )
+            raise typer.Exit(code=1)
+        elif not classical_only and not llm_available and any("quality" in checker or "vibe" in checker for checker in config_data.checkers.enabled):
+            # Warn if LLM checkers are enabled but not available
+            typer.echo(
+                "⚠️  Warning: LLM-based checkers are enabled but no LLM provider is configured.\n"
+                "   LLM checkers will be skipped. To enable them:\n"
+                "   1. For OpenAI: Set OPENAI_API_KEY environment variable\n"
+                "   2. For Google Gemini: Set GOOGLE_API_KEY environment variable and configure provider in refine.toml\n"
+                "   3. For local LLM: Install Ollama and configure provider in refine.toml\n"
+            )
+
         # Initialize printer
         printer = Printer(output_format=output_format, verbose=verbose, root_path=path)
 
