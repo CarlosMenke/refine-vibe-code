@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "refine-vibe-code"
+version = "0.1.0"
+description = "CLI tool to identify AI-generated code and bad coding patterns"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
+keywords = ["code-analysis", "ai-detection", "linting", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "typer[all]>=0.9.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+    "openai>=1.0.0",
+    "httpx>=0.25.0",
+    "detect-secrets>=1.5.0",
+    "requests>=2.32.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/refine-vibe-code"
+Repository = "https://github.com/yourusername/refine-vibe-code"
+Issues = "https://github.com/yourusername/refine-vibe-code/issues"
+
+[project.scripts]
+refine = "refine.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/refine"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["refine"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
