@@ -1,0 +1,81 @@
+# Example configuration file for Refine Vibe Code
+# Copy this file to your project root or use --config option
+
+[scan]
+# File patterns to include in scanning
+include_patterns = [
+    "*.py",
+]
+
+# File patterns to exclude from scanning
+exclude_patterns = [
+    "__pycache__/",
+    "*.pyc",
+    "node_modules/",
+    ".git/",
+    ".venv/",
+    ".env/",
+    "build/",
+    "dist/"
+]
+
+# Maximum file size to scan in bytes (1MB)
+max_file_size = 1048576
+
+# Maximum number of files to scan
+max_files = 1000
+
+[llm]
+# LLM provider to use (openai, local)
+provider = "openai"
+
+# Model name to use
+model = "gpt-4"
+
+# API key (can also be set via OPENAI_API_KEY environment variable)
+# api_key = "your-api-key-here"
+
+# Base URL for API (optional, for custom endpoints)
+# base_url = "https://api.openai.com/v1"
+
+# Temperature for LLM responses (0.0 to 2.0)
+temperature = 0.1
+
+# Maximum tokens for LLM responses
+max_tokens = 1000
+
+# Timeout for LLM requests in seconds
+timeout = 30
+
+[checkers]
+# List of enabled checkers
+enabled = [
+    "package_check",
+    "boilerplate",
+    "edge_cases",
+    "naming_vibe"
+]
+
+# Only run classical (AST-based) checkers
+classical_only = false
+
+# Only run LLM-based checkers
+llm_only = false
+
+[output]
+# Output format (rich, json, plain)
+format = "rich"
+
+# Enable verbose output
+verbose = false
+
+# Show suggested fixes
+show_fixes = true
+
+# Enable colored output
+color = true
+
+
+
+
+
