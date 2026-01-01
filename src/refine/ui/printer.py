@@ -393,11 +393,18 @@ class Printer:
 
     def _get_relative_path(self, file_path: Path) -> str:
         """Get relative path from root directory."""
+        # If root_path is a file, use its parent directory as the effective root
+        effective_root = self.root_path.parent if self.root_path.is_file() else self.root_path
+
         try:
-            return str(file_path.relative_to(self.root_path))
+            relative_path = file_path.relative_to(effective_root)
+            # If relative path is just '.', use the filename for better terminal compatibility
+            if str(relative_path) == '.':
+                return file_path.name
+            return str(relative_path)
         except ValueError:
-            # If path is not relative to root_path, return the absolute path as fallback
-            return str(file_path)
+            # If path is not relative to effective_root, return the filename or absolute path as fallback
+            return file_path.name if file_path.is_file() else str(file_path)
 
     def create_progress(self) -> Progress:
         """Create a progress bar for long operations."""
