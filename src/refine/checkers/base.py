@@ -66,6 +66,7 @@ def get_all_checkers() -> List[BaseChecker]:
     """Get all available checkers."""
     from .classical.package_check import PackageCheckChecker
     from .classical.boilerplate import BoilerplateChecker
+    from .classical.hardcoded_secrets import HardcodedSecretsChecker
     from .llm.edge_cases import EdgeCasesChecker
     from .llm.naming_vibe import NamingVibeChecker
     from .llm.comment_quality import CommentQualityChecker
@@ -73,6 +74,7 @@ def get_all_checkers() -> List[BaseChecker]:
     return [
         PackageCheckChecker(),
         BoilerplateChecker(),
+        HardcodedSecretsChecker(),
         EdgeCasesChecker(),
         NamingVibeChecker(),
         CommentQualityChecker(),
