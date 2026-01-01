@@ -188,62 +188,58 @@ class Printer:
             self._print_finding_card(finding, i)
 
     def _print_finding_card(self, finding: Finding, index: int) -> None:
-        """Print a single finding as a tabular one-line message."""
+        """Print a single finding as a two-line compact message."""
         severity_color = self._get_severity_color(finding.severity.value)
-        type_icon = self._get_type_icon(finding.type.value)
+        title_color = self._get_title_color(finding.type.value)
 
         # Get data
         confidence = finding.confidence_score()
         confidence_str = f"{confidence:.1%}" if confidence > 0 else ""
 
-        # Define column widths
-        severity_width = 8
-        icon_width = 2
-        title_width = 35
-        location_width = 25
-        checker_width = 15
-        confidence_width = 8
-
-        # Format the output: [SEVERITY] [TITLE] LOCATION CHECKER CONFIDENCE FILE:LINE
-        severity_color = self._get_severity_color(finding.severity.value)
-        title_color = self._get_title_color(finding.type.value)
-
-        # Create colored text objects
+        # Create colored text objects for first line
         severity_text = Text(f"[{finding.severity.value.upper()}]", style=severity_color)
         title_text = Text(f"[{finding.title}]", style=title_color)
         checker_text = Text(finding.checker_name, style="magenta")
-        confidence_text = Text(confidence_str, style="green") if confidence_str else None
-        # Relative path with line number at the end
+        confidence_text = Text(confidence_str, style="green") if confidence_str else Text("", style="")
+
+        # Relative path with line number
         relative_path = self._get_relative_path(finding.location.file)
-        full_path_text = Text(f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path, style="cyan")
+        location_text = Text(f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path, style="cyan")
 
-        # Combine all parts - single line output
-        combined_text = Text()
-        combined_text.append(severity_text)
-        combined_text.append(" ")
-        combined_text.append(title_text)
-        combined_text.append(" ")
-        combined_text.append(checker_text)
-        if confidence_text:
-            combined_text.append(" ")
-            combined_text.append(confidence_text)
-        combined_text.append(" ")
-        combined_text.append(full_path_text)
+        # Print first line: main finding info
+        first_line = Text()
+        first_line.append(severity_text)
+        first_line.append(" ")
+        first_line.append(title_text)
+        first_line.append(" ")
+        first_line.append(checker_text)
+        if confidence_str:
+            first_line.append(" ")
+            first_line.append(confidence_text)
+        first_line.append(" ")
+        first_line.append(location_text)
 
-        self.console.print(combined_text)
+        self.console.print(first_line)
 
-        # Show code snippet if available
-        if finding.code_snippet:
-            # Create a dimmed code block for the snippet
-            from rich.panel import Panel
-            snippet_panel = Panel(
-                finding.code_snippet,
-                title="[dim]Code Snippet[/dim]",
-                border_style="dim blue",
-                title_align="left",
-                padding=(0, 1)
-            )
-            self.console.print(snippet_panel)
+        # Print second line: description and code snippet
+        if finding.description or finding.code_snippet:
+            second_line = Text("  ", style="dim")  # Indent with two spaces
+
+            # Add description if different from title
+            if finding.description and finding.description != finding.title:
+                second_line.append(Text(finding.description, style="dim yellow"))
+
+            # Add code snippet if available
+            if finding.code_snippet:
+                if finding.description and finding.description != finding.title:
+                    second_line.append(Text(" ", style="dim"))
+                # Clean up the code snippet for inline display (remove extra whitespace)
+                clean_snippet = finding.code_snippet.strip().replace('\n', ' ').replace('  ', ' ')
+                if len(clean_snippet) > 60:  # Truncate if too long
+                    clean_snippet = clean_snippet[:57] + "..."
+                second_line.append(Text(f"`{clean_snippet}`", style="dim blue"))
+
+            self.console.print(second_line)
 
     def _print_success_message(self) -> None:
         """Print a success message when no issues are found."""
@@ -365,6 +361,10 @@ class Printer:
                 line = " ".join(line_parts)
 
                 self.console.print(line)
+
+                # Show description if available and different from title
+                if finding.description and finding.description != finding.title:
+                    self.console.print(f"\nExplanation: {finding.description}")
 
                 # Show code snippet if available
                 if finding.code_snippet:
