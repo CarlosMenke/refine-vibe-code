@@ -71,6 +71,7 @@ def get_all_checkers() -> List[BaseChecker]:
     from .llm.edge_cases import EdgeCasesChecker
     from .llm.naming_vibe import NamingVibeChecker
     from .llm.comment_quality import CommentQualityChecker
+    from .hybrid.sql_injection import SQLInjectionChecker
 
     return [
         PackageCheckChecker(),
@@ -80,6 +81,7 @@ def get_all_checkers() -> List[BaseChecker]:
         EdgeCasesChecker(),
         NamingVibeChecker(),
         CommentQualityChecker(),
+        SQLInjectionChecker(),
     ]
 
 
