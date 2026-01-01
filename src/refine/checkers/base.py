@@ -68,12 +68,14 @@ def get_all_checkers() -> List[BaseChecker]:
     from .classical.boilerplate import BoilerplateChecker
     from .llm.edge_cases import EdgeCasesChecker
     from .llm.naming_vibe import NamingVibeChecker
+    from .llm.comment_quality import CommentQualityChecker
 
     return [
         PackageCheckChecker(),
         BoilerplateChecker(),
         EdgeCasesChecker(),
         NamingVibeChecker(),
+        CommentQualityChecker(),
     ]
 
 
