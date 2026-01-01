@@ -204,6 +204,19 @@ class Printer:
 
         self.console.print(combined_text)
 
+        # Show code snippet if available
+        if finding.code_snippet:
+            # Create a dimmed code block for the snippet
+            from rich.panel import Panel
+            snippet_panel = Panel(
+                finding.code_snippet,
+                title="[dim]Code Snippet[/dim]",
+                border_style="dim blue",
+                title_align="left",
+                padding=(0, 1)
+            )
+            self.console.print(snippet_panel)
+
     def _print_success_message(self) -> None:
         """Print a success message when no issues are found."""
         success_panel = Panel(
@@ -261,6 +274,7 @@ class Printer:
                     },
                     "checker_name": f.checker_name,
                     "confidence": f.confidence_score(),
+                    "code_snippet": f.code_snippet,
                     "fixes": [
                         {
                             "type": fix.type.value,
@@ -323,6 +337,13 @@ class Printer:
                 line = " ".join(line_parts)
 
                 self.console.print(line)
+
+                # Show code snippet if available
+                if finding.code_snippet:
+                    self.console.print(f"\nCode snippet:")
+                    for snippet_line in finding.code_snippet.split('\n'):
+                        self.console.print(f"  {snippet_line}")
+                    self.console.print()
 
     def _get_severity_color(self, severity: str) -> str:
         """Get Rich color for severity level."""

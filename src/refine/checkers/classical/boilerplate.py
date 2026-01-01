@@ -33,6 +33,27 @@ class BoilerplateChecker(BaseChecker):
             ),
         }
 
+    def _extract_code_snippet(self, content: str, line_number: int, context_lines: int = 1) -> str:
+        """Extract a code snippet around the given line number."""
+        lines = content.splitlines()
+        if line_number < 1 or line_number > len(lines):
+            return ""
+
+        # Get the target line and some context
+        start_line = max(0, line_number - context_lines - 1)
+        end_line = min(len(lines), line_number + context_lines)
+
+        # Extract the snippet
+        snippet_lines = lines[start_line:end_line]
+
+        # Join with line numbers for clarity
+        numbered_lines = []
+        for i, line in enumerate(snippet_lines, start_line + 1):
+            marker = ">" if i == line_number else " "
+            numbered_lines.append(f"{marker} {i:3d}| {line}")
+
+        return "\n".join(numbered_lines)
+
     def _get_supported_extensions(self) -> List[str]:
         return [".py"]
 
@@ -53,7 +74,7 @@ class BoilerplateChecker(BaseChecker):
                     line_end = content[:match.end()].count('\n') + 1
 
                     finding = self._create_finding_for_pattern(
-                        pattern_name, match, file_path, lines, line_start, line_end
+                        pattern_name, match, file_path, content, lines, line_start, line_end
                     )
                     if finding:
                         findings.append(finding)
@@ -104,7 +125,7 @@ class BoilerplateChecker(BaseChecker):
                     lines = content.splitlines()
 
                     finding = self._create_finding_for_pattern(
-                        pattern_name, match, file_path, lines, line_start, line_end
+                        pattern_name, match, file_path, content, lines, line_start, line_end
                     )
                     if finding:
                         findings.append(finding)
@@ -125,6 +146,9 @@ class BoilerplateChecker(BaseChecker):
             # Get the lambda source code
             lambda_code = self._get_node_source(node, content)
 
+            # Extract code snippet
+            code_snippet = self._extract_code_snippet(content, line_start)
+
             findings.append(Finding(
                 id=f"unnecessary_lambda_{file_path.name}_{line_start}",
                 title="Unnecessary Lambda",
@@ -137,6 +161,7 @@ class BoilerplateChecker(BaseChecker):
                     line_end=line_end,
                 ),
                 checker_name=self.name,
+                code_snippet=code_snippet,
                 evidence=[Evidence(
                     type="ast_lambda",
                     description=f"Simple lambda '{lambda_code}' could potentially be replaced with a more readable alternative",
@@ -212,6 +237,7 @@ class BoilerplateChecker(BaseChecker):
         pattern_name: str,
         match: re.Match,
         file_path: Path,
+        content: str,
         lines: List[str],
         line_start: int,
         line_end: int
@@ -251,6 +277,9 @@ class BoilerplateChecker(BaseChecker):
         if len(matched_text) > 100:
             matched_text = matched_text[:97] + "..."
 
+        # Extract code snippet
+        code_snippet = self._extract_code_snippet(content, line_start)
+
         return Finding(
             id=f"{pattern_name}_{file_path.name}_{line_start}",
             title=info["title"],
@@ -263,6 +292,7 @@ class BoilerplateChecker(BaseChecker):
                 line_end=line_end if line_end > line_start else None,
             ),
             checker_name=self.name,
+            code_snippet=code_snippet,
             evidence=[Evidence(
                 type="pattern",
                 description=f"Matched pattern: {matched_text}",

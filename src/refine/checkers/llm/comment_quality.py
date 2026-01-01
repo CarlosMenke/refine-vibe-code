@@ -19,6 +19,27 @@ class CommentQualityChecker(BaseChecker):
             is_classical=False
         )
 
+    def _extract_code_snippet(self, content: str, line_number: int, context_lines: int = 1) -> str:
+        """Extract a code snippet around the given line number."""
+        lines = content.splitlines()
+        if line_number < 1 or line_number > len(lines):
+            return ""
+
+        # Get the target line and some context
+        start_line = max(0, line_number - context_lines - 1)
+        end_line = min(len(lines), line_number + context_lines)
+
+        # Extract the snippet
+        snippet_lines = lines[start_line:end_line]
+
+        # Join with line numbers for clarity
+        numbered_lines = []
+        for i, line in enumerate(snippet_lines, start_line + 1):
+            marker = ">" if i == line_number else " "
+            numbered_lines.append(f"{marker} {i:3d}| {line}")
+
+        return "\n".join(numbered_lines)
+
     def _get_supported_extensions(self) -> List[str]:
         return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs", ".php", ".rb"]
 
@@ -69,6 +90,7 @@ class CommentQualityChecker(BaseChecker):
 
             # Check for obvious redundant comments
             if "# Add the first number to the second number" in line_content:
+                code_snippet = self._extract_code_snippet(content, i)
                 findings.append(Finding(
                     id=f"comment_quality_mock_{file_path.name}_{i}_redundant",
                     title="Redundant Comment",
@@ -77,6 +99,7 @@ class CommentQualityChecker(BaseChecker):
                     type=FindingType.STYLE_ISSUE,
                     location=Location(file=file_path, line_start=i),
                     checker_name=self.name,
+                    code_snippet=code_snippet,
                     evidence=[Evidence(
                         type="pattern_match",
                         description="Comment '# Add the first number to the second number' is redundant",
@@ -91,6 +114,7 @@ class CommentQualityChecker(BaseChecker):
 
             # Check for obvious docstring issues
             elif "This function calculates the sum of two numbers." in line_content:
+                code_snippet = self._extract_code_snippet(content, i, context_lines=2)
                 findings.append(Finding(
                     id=f"comment_quality_mock_{file_path.name}_{i}_generic_docstring",
                     title="Generic Docstring",
@@ -99,6 +123,7 @@ class CommentQualityChecker(BaseChecker):
                     type=FindingType.STYLE_ISSUE,
                     location=Location(file=file_path, line_start=i),
                     checker_name=self.name,
+                    code_snippet=code_snippet,
                     evidence=[Evidence(
                         type="pattern_match",
                         description="Generic docstring that doesn't add value",
@@ -113,6 +138,7 @@ class CommentQualityChecker(BaseChecker):
 
             # Check for verbose docstrings
             elif "This function is designed to validate the user input that is passed to it." in line_content:
+                code_snippet = self._extract_code_snippet(content, i, context_lines=2)
                 findings.append(Finding(
                     id=f"comment_quality_mock_{file_path.name}_{i}_verbose_docstring",
                     title="Overly Verbose Docstring",
@@ -121,6 +147,7 @@ class CommentQualityChecker(BaseChecker):
                     type=FindingType.STYLE_ISSUE,
                     location=Location(file=file_path, line_start=i),
                     checker_name=self.name,
+                    code_snippet=code_snippet,
                     evidence=[Evidence(
                         type="pattern_match",
                         description="Excessively verbose docstring",
@@ -299,6 +326,8 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
         elif suggested_action == "replace" and issue.get("suggested_text"):
             fix_prompt = f"Replace with: {issue['suggested_text']}"
 
+        code_snippet = self._extract_code_snippet(content, line_number, context_lines=2)
+
         return Finding(
             id=f"comment_quality_{file_path.name}_{line_number}_{hash(issue.get('title', '')) % 1000}",
             title=issue.get("title", "Comment/Docstring Quality Issue"),
@@ -310,6 +339,7 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
                 line_start=line_number,
             ),
             checker_name=self.name,
+            code_snippet=code_snippet,
             evidence=[Evidence(
                 type="llm_analysis",
                 description=f"LLM analysis: {issue.get('description', '')}",
@@ -363,17 +393,21 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
 
     def _create_finding_from_text(self, issue: dict, file_path: Path) -> Finding:
         """Create a finding from text-based issue description."""
+        line_number = issue.get("line_number", 1)
+        code_snippet = self._extract_code_snippet("", line_number)  # Empty content fallback
+
         return Finding(
-            id=f"comment_quality_text_{file_path.name}_{issue.get('line_number', 1)}_{hash(str(issue)) % 1000}",
+            id=f"comment_quality_text_{file_path.name}_{line_number}_{hash(str(issue)) % 1000}",
             title="Comment/Docstring Quality Issue Detected",
             description=issue.get("description", "LLM detected a comment or docstring quality issue"),
             severity=Severity.LOW,
             type=FindingType.STYLE_ISSUE,
             location=Location(
                 file=file_path,
-                line_start=issue.get("line_number", 1),
+                line_start=line_number,
             ),
             checker_name=self.name,
+            code_snippet=code_snippet,
             evidence=[Evidence(
                 type="llm_analysis",
                 description=issue.get("description", ""),

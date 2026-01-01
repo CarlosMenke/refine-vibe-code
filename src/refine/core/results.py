@@ -91,6 +91,7 @@ class Finding(BaseModel):
     fixes: List[Fix] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=datetime.now)
+    code_snippet: Optional[str] = None  # 1-2 line preview of offending code
 
     def has_fixes(self) -> bool:
         """Check if this finding has any suggested fixes."""
