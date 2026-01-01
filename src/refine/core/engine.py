@@ -39,8 +39,7 @@ class ScanEngine:
         # Process each file
         for i, file_path in enumerate(files_to_scan, 1):
             if self.printer.verbose:
-                relative_path = file_path.relative_to(path)
-                self.printer.print_status(f"Scanning {relative_path} ({i}/{len(files_to_scan)})")
+                self.printer.print_file_status(f"Scanning ({i}/{len(files_to_scan)})", file_path)
 
             try:
                 # Read file content
