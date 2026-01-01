@@ -44,6 +44,9 @@ refine scan
 # Or scan a specific folder
 refine scan /path/to/your/project
 
+# If using uv from source, use:
+uv run python run_refine.py scan
+
 # Get help
 refine --help
 ```
