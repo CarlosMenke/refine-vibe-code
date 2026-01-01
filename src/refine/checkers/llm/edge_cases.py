@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import List
 
 from ..base import BaseChecker
-from ...core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
-from ...providers import get_provider
+from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
+from refine.providers import get_provider
 
 
 class EdgeCasesChecker(BaseChecker):

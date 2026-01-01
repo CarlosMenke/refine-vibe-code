@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Set
 
 from ..base import BaseChecker
-from ...core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
+from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
 
 
 class PackageCheckChecker(BaseChecker):
