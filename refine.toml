@@ -39,7 +39,7 @@ api_key = "sk-your-openai-api-key-here"
 # === Google Gemini Provider Configuration ===
 # provider = "google"
 # model = "gemini-2.0-flash-exp"
-# api_key = "AQ.Ab8RN6KJZnkDbofE5cRd-3DZJYcmSleHvg-8N7do1FXdzfQ-8g"
+# api_key = "your-google-api-key-here"
 
 # === Local Ollama Provider Configuration ===
 # provider = "local"
