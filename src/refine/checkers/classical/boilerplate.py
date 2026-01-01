@@ -10,34 +10,17 @@ from refine.core.results import Finding, Severity, FindingType, Location, Fix, F
 
 
 class BoilerplateChecker(BaseChecker):
-    """Checker for common boilerplate code patterns that may indicate AI generation."""
+    """Checker for objective code quality issues and unnecessary complexity."""
 
     def __init__(self):
         super().__init__(
             name="boilerplate",
-            description="Detects common boilerplate patterns that may indicate AI-generated code",
+            description="Detects objective code quality issues and unnecessary complexity patterns",
             is_classical=True
         )
 
-        # Patterns that often appear in AI-generated code
-        # Note: Docstring analysis is now handled via AST for Python files
+        # Patterns for objective code quality issues
         self.boilerplate_patterns = {
-            "generic_class_comment": re.compile(
-                r'#\s*(?:A|The|This)\s+(?:class|function|method)\s+(?:is|was|has|does|will|can|should)',
-                re.IGNORECASE
-            ),
-            "generic_function_comment": re.compile(
-                r'#\s*(?:This function|The function|A function)\s+(?:takes|accepts|receives|returns|does|will)',
-                re.IGNORECASE
-            ),
-            "ai_placeholder_comment": re.compile(
-                r'#\s*(?:TODO|FIXME|NOTE|HACK|XXX):\s*(?:implement|add|fix|remove|update|change)',
-                re.IGNORECASE
-            ),
-            "overly_descriptive_comment": re.compile(
-                r'#\s*(?:This code|The following code|The code below|In this section)',
-                re.IGNORECASE
-            ),
             "generic_variable_names": re.compile(
                 r'\b(?:temp|tmp|var|data|result|value|item|obj|object)_\d+\b'
             ),
@@ -84,11 +67,11 @@ class BoilerplateChecker(BaseChecker):
         try:
             tree = ast.parse(content, filename=str(file_path))
 
-            # Check docstrings for each node type
+            # Only check for lambda expressions and other patterns
             for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Module)):
-                    docstring_issues = self._analyze_docstring(node, file_path, content)
-                    findings.extend(docstring_issues)
+                if isinstance(node, ast.Lambda):
+                    lambda_issues = self._analyze_lambda(node, file_path, content)
+                    findings.extend(lambda_issues)
 
                 # Check for lambda expressions
                 if isinstance(node, ast.Lambda):
@@ -128,107 +111,6 @@ class BoilerplateChecker(BaseChecker):
 
         return findings
 
-    def _analyze_docstring(self, node: ast.AST, file_path: Path, content: str) -> List[Finding]:
-        """Analyze docstring quality using AST."""
-        findings = []
-
-        docstring = ast.get_docstring(node)
-        if not docstring:
-            return findings
-
-        lines = content.splitlines()
-        line_start = node.lineno
-        line_end = node.end_lineno or node.lineno
-
-        # Analyze docstring quality
-        issues = self._evaluate_docstring_quality(docstring, node)
-
-        for issue_type, confidence in issues:
-            if issue_type == "redundant":
-                findings.append(Finding(
-                    id=f"redundant_docstring_{file_path.name}_{line_start}",
-                    title="Redundant Docstring",
-                    description="Docstring appears redundant and may be AI-generated",
-                    severity=Severity.LOW,
-                    type=FindingType.AI_GENERATED,
-                    location=Location(
-                        file=file_path,
-                        line_start=line_start,
-                        line_end=line_end,
-                    ),
-                    checker_name=self.name,
-                    evidence=[Evidence(
-                        type="ast_docstring",
-                        description=f"Docstring analysis detected redundant content: '{docstring[:100]}{'...' if len(docstring) > 100 else ''}'",
-                        confidence=confidence,
-                    )],
-                    fixes=[Fix(
-                        type=FixType.PROMPT,
-                        description="Review and improve the docstring",
-                        prompt="Consider rewriting this docstring to be more specific and informative, or remove if redundant"
-                    )]
-                ))
-            elif issue_type == "too_generic":
-                findings.append(Finding(
-                    id=f"generic_docstring_{file_path.name}_{line_start}",
-                    title="Generic Docstring",
-                    description="Docstring is too generic and doesn't provide specific information",
-                    severity=Severity.LOW,
-                    type=FindingType.AI_GENERATED,
-                    location=Location(
-                        file=file_path,
-                        line_start=line_start,
-                        line_end=line_end,
-                    ),
-                    checker_name=self.name,
-                    evidence=[Evidence(
-                        type="ast_docstring",
-                        description=f"Docstring lacks specificity: '{docstring[:100]}{'...' if len(docstring) > 100 else ''}'",
-                        confidence=confidence,
-                    )],
-                    fixes=[Fix(
-                        type=FixType.PROMPT,
-                        description="Make docstring more specific",
-                        prompt="Replace generic phrases with specific details about what this code does"
-                    )]
-                ))
-
-        return findings
-
-    def _evaluate_docstring_quality(self, docstring: str, node: ast.AST) -> List[tuple[str, float]]:
-        """Evaluate docstring quality and return issues with confidence scores."""
-        issues = []
-        doc_lower = docstring.lower().strip()
-
-        # Check for redundant patterns
-        redundant_patterns = [
-            r"^(this (function|method|class) (does|is|was|will|can|should))",
-            r"^(the (function|method|class) (does|is|was|will|can|should))",
-            r"^(a (function|method|class) (that|which) (does|is|was|will|can|should))",
-            r"^(function|method|class) (that|which) (does|is|was|will|can|should)",
-        ]
-
-        for pattern in redundant_patterns:
-            if re.match(pattern, doc_lower, re.IGNORECASE):
-                issues.append(("redundant", 0.8))
-                break
-
-        # Check for overly generic content
-        if len(docstring.split()) < 3:
-            issues.append(("too_generic", 0.6))
-
-        # Check for placeholder-like content
-        placeholder_words = ['todo', 'fixme', 'implement', 'add', 'remove', 'update']
-        if any(word in doc_lower for word in placeholder_words):
-            issues.append(("too_generic", 0.7))
-
-        # For functions/methods, check if docstring just restates the function name
-        if isinstance(node, ast.FunctionDef):
-            func_name_lower = node.name.lower()
-            if func_name_lower in doc_lower and len(docstring.split()) <= 5:
-                issues.append(("redundant", 0.7))
-
-        return issues
 
     def _analyze_lambda(self, node: ast.Lambda, file_path: Path, content: str) -> List[Finding]:
         """Analyze lambda expression for potential unnecessary usage."""
@@ -337,39 +219,15 @@ class BoilerplateChecker(BaseChecker):
         """Create a finding for a specific pattern match."""
 
         pattern_info = {
-            "generic_class_comment": {
-                "title": "Generic Class Comment",
-                "description": "Comment appears to be generic AI-generated class documentation",
-                "severity": Severity.LOW,
-                "confidence": 0.6,
-            },
-            "generic_function_comment": {
-                "title": "Generic Function Comment",
-                "description": "Comment appears to be generic AI-generated function documentation",
-                "severity": Severity.LOW,
-                "confidence": 0.6,
-            },
-            "ai_placeholder_comment": {
-                "title": "AI Placeholder Comment",
-                "description": "Comment appears to be a placeholder left by AI code generation",
-                "severity": Severity.MEDIUM,
-                "confidence": 0.8,
-            },
-            "overly_descriptive_comment": {
-                "title": "Overly Descriptive Comment",
-                "description": "Comment is overly descriptive and may indicate AI generation",
-                "severity": Severity.LOW,
-                "confidence": 0.5,
-            },
             "generic_variable_names": {
                 "title": "Generic Variable Names",
-                "description": "Variable names follow generic AI-generated patterns",
+                "description": "Variable names follow generic patterns that reduce code clarity",
                 "severity": Severity.LOW,
-                "confidence": 0.5,
+                "confidence": 0.7,
             },
             "unnecessary_lambda": {
                 "title": "Unnecessary Lambda",
-                "description": "Lambda function may be unnecessary and indicates AI-generated code",
+                "description": "Lambda function may be unnecessary - consider using a named function or built-in",
                 "severity": Severity.LOW,
                 "confidence": 0.6,
             },
