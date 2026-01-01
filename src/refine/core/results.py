@@ -139,6 +139,10 @@ class ScanResults(BaseModel):
         """Get findings filtered by checker."""
         return [f for f in self.findings if f.checker_name == checker_name]
 
+    def get_findings_by_file(self, file_path: Path) -> List[Finding]:
+        """Get findings filtered by file."""
+        return [f for f in self.findings if f.location.file == file_path]
+
     def summary(self) -> Dict[str, Any]:
         """Generate a summary of the results."""
         severity_counts = {}

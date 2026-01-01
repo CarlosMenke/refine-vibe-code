@@ -125,35 +125,38 @@ class Printer:
         self.console.print(summary_panel)
 
     def _print_findings_cards(self, findings: List[Finding]) -> None:
-        """Print findings as beautiful cards grouped by severity."""
-        # Group findings by severity
-        severity_order = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
+        """Print findings as beautiful cards grouped by file."""
+        # Group findings by file
         grouped_findings = {}
 
         for finding in findings:
-            severity = finding.severity.value
-            if severity not in grouped_findings:
-                grouped_findings[severity] = []
-            grouped_findings[severity].append(finding)
+            file_path = str(finding.location.file)
+            if file_path not in grouped_findings:
+                grouped_findings[file_path] = []
+            grouped_findings[file_path].append(finding)
 
-        # Sort groups by severity (most severe first)
-        sorted_groups = sorted(grouped_findings.keys(), key=lambda s: severity_order.get(Severity(s), 5))
+        # Sort groups by file path (alphabetically)
+        sorted_groups = sorted(grouped_findings.keys())
 
         self.console.print("\n")  # Add some space
 
-        for severity in sorted_groups:
-            findings_in_group = grouped_findings[severity]
-            self._print_severity_group(severity, findings_in_group)
+        for file_path in sorted_groups:
+            findings_in_group = grouped_findings[file_path]
+            self._print_file_group(file_path, findings_in_group)
 
-    def _print_severity_group(self, severity: str, findings: List[Finding]) -> None:
-        """Print all findings for a specific severity level."""
-        severity_color = self._get_severity_color(severity)
-        severity_icon = self._get_severity_icon(severity)
+    def _print_file_group(self, file_path: str, findings: List[Finding]) -> None:
+        """Print all findings for a specific file."""
+        # Get relative path for display
+        relative_path = self._get_relative_path(Path(file_path))
+
+        # Use file icon and consistent color for file headers
+        file_icon = "📄"
+        file_color = "bold blue"
 
         # Group header
-        group_title = f"{severity_icon} {severity.upper()} ISSUES ({len(findings)})"
-        self.console.print(f"\n[bold {severity_color}]{group_title}[/bold {severity_color}]")
-        self.console.print(f"[dim {severity_color}]{'─' * len(group_title)}[/dim {severity_color}]")
+        group_title = f"{file_icon} {relative_path} ({len(findings)} findings)"
+        self.console.print(f"\n[{file_color}]{group_title}[/{file_color}]")
+        self.console.print(f"[dim blue]{'─' * len(group_title)}[/dim blue]")
 
         # Print each finding as a card
         for i, finding in enumerate(findings, 1):
