@@ -26,20 +26,25 @@ max_file_size = 1048576
 max_files = 1000
 
 [llm]
-# LLM provider to use (openai, local)
-provider = "openai"
-
-# Model name to use
-model = "gpt-4"
-
-# API key (can also be set via OPENAI_API_KEY environment variable)
-# api_key = "your-api-key-here"
+# LLM provider to use (openai, google, local)
 
 # Base URL for API (optional, for custom endpoints)
 # base_url = "https://api.openai.com/v1"
 
-# Temperature for LLM responses (0.0 to 2.0)
-temperature = 0.1
+# === OpenAI Provider Configuration ===
+provider = "openai"
+model = "gpt-4o-mini"
+api_key = "sk-your-openai-api-key-here"
+
+# === Google Gemini Provider Configuration ===
+# provider = "google"
+# model = "gemini-2.0-flash-exp"
+# api_key = "AQ.Ab8RN6KJZnkDbofE5cRd-3DZJYcmSleHvg-8N7do1FXdzfQ-8g"
+
+# === Local Ollama Provider Configuration ===
+# provider = "local"
+# model = "llama3.2:3b"
+# api_key = ""  # Not needed for local
 
 # Maximum tokens for LLM responses
 max_tokens = 1000
@@ -53,7 +58,8 @@ enabled = [
     "package_check",
     "boilerplate",
     "edge_cases",
-    "naming_vibe"
+    "naming_vibe",
+    "comment_quality"
 ]
 
 # Only run classical (AST-based) checkers
