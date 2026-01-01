@@ -1,6 +1,5 @@
 """OpenAI LLM provider implementation."""
 
-import os
 from typing import Optional
 from .base import LLMProvider
 
@@ -14,8 +13,7 @@ class OpenAIProvider(LLMProvider):
 
     def is_available(self) -> bool:
         """Check if OpenAI provider is available."""
-        # Prioritize environment variable over config file
-        api_key = os.getenv("OPENAI_API_KEY") or self.config.llm.api_key
+        api_key = self.config.llm.api_key
 
         # Check if we have a real API key (not just a placeholder)
         if not api_key:
@@ -44,7 +42,7 @@ class OpenAIProvider(LLMProvider):
 
             # Initialize client if not already done
             if self._client is None:
-                api_key = os.getenv("OPENAI_API_KEY") or self.config.llm.api_key
+                api_key = self.config.llm.api_key
                 base_url = self.config.llm.base_url
 
                 self._client = OpenAI(
@@ -76,12 +74,4 @@ class OpenAIProvider(LLMProvider):
             raise ValueError("OpenAI package not installed. Install with: pip install openai")
         except Exception as e:
             raise ValueError(f"OpenAI API error: {e}")
-
-    def _get_api_key_from_env(self) -> Optional[str]:
-        """Get API key from environment variables."""
-        return os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APIKEY")
-
-
-
-
 

@@ -1,6 +1,5 @@
 """Google Gemini LLM provider implementation."""
 
-import os
 from typing import Optional
 from .base import LLMProvider
 
@@ -14,8 +13,7 @@ class GoogleProvider(LLMProvider):
 
     def is_available(self) -> bool:
         """Check if Google provider is available."""
-        # Prioritize environment variable over config file
-        api_key = os.getenv("GOOGLE_API_KEY") or self.config.llm.api_key
+        api_key = self.config.llm.api_key
 
         # Check if we have a real API key (not just a placeholder)
         if not api_key:
@@ -43,7 +41,7 @@ class GoogleProvider(LLMProvider):
 
             # Initialize client if not already done
             if self._client is None:
-                api_key = os.getenv("GOOGLE_API_KEY") or self.config.llm.api_key
+                api_key = self.config.llm.api_key
                 # Use Google's OpenAI-compatible API endpoint
                 base_url = self.config.llm.base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
 
@@ -77,6 +75,3 @@ class GoogleProvider(LLMProvider):
         except Exception as e:
             raise ValueError(f"Google Gemini API error: {e}")
 
-    def _get_api_key_from_env(self) -> Optional[str]:
-        """Get API key from environment variables."""
-        return os.getenv("GOOGLE_API_KEY")
