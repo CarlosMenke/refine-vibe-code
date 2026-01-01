@@ -9,7 +9,9 @@ class ScanConfig(BaseModel):
     """Configuration for scanning behavior."""
 
     include_patterns: List[str] = Field(
-        default=["*.py", "*.js", "*.ts", "*.java", "*.cpp", "*.c", "*.go", "*.rs"],
+        default=["*.py", "*.js", "*.ts", "*.java", "*.cpp", "*.c", "*.go", "*.rs",
+                "requirements*.txt", "pyproject.toml", "setup.py", "setup.cfg",
+                "Pipfile", "Pipfile.lock", "package.json", "package-lock.json", "yarn.lock"],
         description="File patterns to include in scanning",
     )
     exclude_patterns: List[str] = Field(
@@ -68,6 +70,7 @@ class CheckersConfig(BaseModel):
         default=[
             "package_check",
             "boilerplate",
+            "dependency_validation",
             "edge_cases",
             "naming_vibe",
             "comment_quality",

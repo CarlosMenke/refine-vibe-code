@@ -5,6 +5,7 @@
 # File patterns to include in scanning
 include_patterns = [
     "*.py",
+    "*requirements*.txt",
 ]
 
 # File patterns to exclude from scanning
@@ -36,6 +37,11 @@ max_files = 1000
 # model = "gpt-4o-mini"
 # api_key = "sk-your-openai-api-key-here"
 
+# === OpenAI Provider Configuration ===
+#provider = "openai"
+# model = "gpt-4o-mini"
+# api_key = "sk-your-openai-api-key-here"  # Uncomment and set your API key here
+
 # === Google Gemini Provider Configuration ===
 provider = "google"
 model = "gemini-2.0-flash-exp"
@@ -53,6 +59,7 @@ enabled = [
     "package_check",
     "boilerplate",
     "hardcoded_secrets",
+    "dependency_validation",
     "edge_cases",
     "naming_vibe",
     "comment_quality"
