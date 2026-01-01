@@ -33,3 +33,22 @@ enabled = [
     "dangerous_ai_logic",
     "sql_injection",
 ]
+
+# Only run classical (AST-based) checkers
+classical_only = false
+
+# Only run LLM-based checkers
+llm_only = false
+
+[output]
+# Output format (rich, json, plain)
+format = "rich"
+
+# Enable verbose output
+verbose = false
+
+# Show suggested fixes
+show_fixes = true
+
+# Enable colored output
+color = true
