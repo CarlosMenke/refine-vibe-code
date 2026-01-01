@@ -135,6 +135,9 @@ dmypy.json
 *.swo
 *~
 
+# Optional: Uncomment to ignore config file if it contains API keys
+refine.toml
+
 # OS
 .DS_Store
 .DS_Store?
