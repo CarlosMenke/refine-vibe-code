@@ -31,9 +31,6 @@ def get_provider(config: Optional[RefineConfig] = None) -> LLMProvider:
     if config.llm.provider in ["openai", "google"]:
         from .openai import OpenAIProvider
         return OpenAIProvider(config)
-    elif config.llm.provider == "local":
-        from .local import LocalProvider
-        return LocalProvider(config)
     else:
         # Default to OpenAI
         from .openai import OpenAIProvider

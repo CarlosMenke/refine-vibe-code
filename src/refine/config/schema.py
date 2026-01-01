@@ -31,7 +31,7 @@ class LLMConfig(BaseModel):
 
     provider: str = Field(
         default="openai",
-        description="LLM provider to use (openai, google, local)",
+        description="LLM provider to use (openai, google)",
     )
     model: str = Field(
         default="gpt-4",
@@ -122,7 +122,7 @@ class RefineConfig(BaseModel):
     @classmethod
     def validate_llm_config(cls, v):
         """Validate LLM configuration."""
-        if v.provider not in ["openai", "google", "local"]:
+        if v.provider not in ["openai", "google"]:
             raise ValueError(f"Unsupported LLM provider: {v.provider}")
         return v
 

@@ -92,7 +92,6 @@ def scan(
                 "\nTo use LLM-based checkers, you need to configure an LLM provider:\n"
                 "\n1. For OpenAI: Set OPENAI_API_KEY environment variable or add api_key to refine.toml\n"
                 "2. For Google Gemini: Set GOOGLE_API_KEY environment variable, set provider = \"google\" and model = \"gemini-2.0-flash-exp\" in refine.toml\n"
-                "3. For local LLM: Install Ollama and set provider = \"local\" in refine.toml\n"
                 "\nRun 'uv run refine init' to generate a configuration file.",
                 err=True
             )
@@ -112,7 +111,6 @@ def scan(
             typer.echo("║                                                                            ║")
             typer.echo("║  1. OpenAI:    Set OPENAI_API_KEY environment variable                    ║")
             typer.echo("║  2. Google:    Set GOOGLE_API_KEY + configure provider in refine.toml    ║")
-            typer.echo("║  3. Local:     Install Ollama + set provider = \"local\"                 ║")
             typer.echo("║                                                                            ║")
             typer.echo("║  Run 'uv run refine init' to generate a configuration file.              ║")
             typer.echo("╚══════════════════════════════════════════════════════════════════════════════╝")
