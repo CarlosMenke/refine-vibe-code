@@ -92,34 +92,59 @@ class Printer:
         """Print an enhanced summary with icons and better styling."""
         summary = results.summary()
 
-        # Create a beautiful summary with icons
-        summary_lines = [
-            f"📁 [bold cyan]Files scanned:[/bold cyan] {results.files_scanned}",
-            f"⏭️  [bold cyan]Files skipped:[/bold cyan] {results.files_skipped}",
-            f"🔍 [bold cyan]Total findings:[/bold cyan] {len(results.findings)}",
-            f"⚡ [bold cyan]Scan time:[/bold cyan] {results.scan_time:.2f}s"
+        # For clean scans (no findings), use compact one-line summary
+        if not results.findings:
+            compact_summary = f"📁 [bold cyan]{results.files_scanned}[/bold cyan] files scanned, ⏭️ [bold cyan]{results.files_skipped}[/bold cyan] skipped, ⚡ [bold green]{results.scan_time:.2f}s[/bold green]"
+            compact_panel = Panel(
+                compact_summary,
+                title="[bold green]✅ Clean Scan[/bold green]",
+                border_style="green",
+                title_align="center"
+            )
+            self.console.print(compact_panel)
+            return
+
+        # For scans with findings, use compact table format
+        from rich.table import Table
+
+        # Create compact table
+        table = Table(show_header=True, header_style="bold cyan", show_edge=False, pad_edge=False)
+        table.add_column("📁 Files", style="cyan", no_wrap=True)
+        table.add_column("⏭️ Skipped", style="dim cyan", no_wrap=True)
+        table.add_column("🔍 Findings", style="yellow", no_wrap=True)
+        table.add_column("⚡ Time", style="green", no_wrap=True)
+
+        # Add severity breakdown columns dynamically
+        severity_breakdown = summary.get("severity_breakdown", {})
+        severity_columns = {}
+        for severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
+            if severity.value in severity_breakdown:
+                count = severity_breakdown[severity.value]
+                icon = self._get_severity_icon(severity.value)
+                color = self._get_severity_color(severity.value)
+                col_name = f"{icon} {severity.value.title()}"
+                table.add_column(col_name, style=color, no_wrap=True)
+                severity_columns[severity.value] = count
+
+        # Prepare row data
+        row_data = [
+            str(results.files_scanned),
+            str(results.files_skipped),
+            str(len(results.findings)),
+            f"{results.scan_time:.2f}s"
         ]
 
-        # Add severity breakdown with icons and colors
-        severity_breakdown = summary.get("severity_breakdown", {})
-        if severity_breakdown:
-            severity_lines = []
-            for severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
-                if severity.value in severity_breakdown:
-                    count = severity_breakdown[severity.value]
-                    icon = self._get_severity_icon(severity.value)
-                    color = self._get_severity_color(severity.value)
-                    severity_lines.append(f"{icon} [{color}]{severity.value.title()}: {count}[/{color}]")
+        # Add severity counts in order
+        for severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
+            if severity.value in severity_columns:
+                row_data.append(str(severity_columns[severity.value]))
 
-            if severity_lines:
-                summary_lines.append("")
-                summary_lines.append("[bold]📊 Findings by severity:[/bold]")
-                summary_lines.extend(severity_lines)
+        table.add_row(*row_data)
 
         summary_panel = Panel(
-            "\n".join(summary_lines),
-            title="[bold green]🚀 Scan Summary[/bold green]",
-            border_style="green",
+            table,
+            title="[bold blue]🚀 Scan Summary[/bold blue]",
+            border_style="blue",
             title_align="left"
         )
         self.console.print(summary_panel)
@@ -385,9 +410,9 @@ class Printer:
     def _get_title_color(self, finding_type: str) -> str:
         """Get color for finding type title."""
         color_map = {
-            "ai_generated": "yellow",
-            "bad_practice": "red",
-            "code_smell": "purple",
+            "ai_generated": "purple",  # Purple/Magenta for AI-generated smells
+            "bad_practice": "yellow",  # Yellow for standard bad patterns
+            "code_smell": "red",       # Red for code smells
             "security_issue": "bold red",
             "performance_issue": "orange1",
             "style_issue": "cyan",
