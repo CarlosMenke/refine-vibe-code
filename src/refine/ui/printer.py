@@ -153,50 +153,49 @@ class Printer:
             self._print_finding_card(finding, i)
 
     def _print_finding_card(self, finding: Finding, index: int) -> None:
-        """Print a single finding as a beautiful card."""
+        """Print a single finding as a tabular one-line message."""
         severity_color = self._get_severity_color(finding.severity.value)
         type_icon = self._get_type_icon(finding.type.value)
 
-        # Card content
-        card_lines = [
-            f"[bold]{finding.title}[/bold]",
-            f"[dim]📍 Location:[/dim] [cyan]{finding.location.file.name}[/cyan]:[yellow]{finding.location.line_start}[/yellow]",
-            f"[dim]{type_icon} Type:[/dim] {finding.type.value.replace('_', ' ').title()}",
-            f"[dim]🔧 Checker:[/dim] [magenta]{finding.checker_name}[/magenta]",
-        ]
-
-        # Add confidence if available
+        # Get data
         confidence = finding.confidence_score()
-        if confidence > 0:
-            confidence_color = "green" if confidence >= 0.8 else "yellow" if confidence >= 0.6 else "red"
-            card_lines.append(f"[dim]🎯 Confidence:[/dim] [{confidence_color}]{confidence:.1%}[/{confidence_color}]")
+        confidence_str = f"{confidence:.1%}" if confidence > 0 else ""
 
-        # Add description (full, no truncation)
-        if finding.description:
-            card_lines.append(f"[dim]📝 Description:[/dim] {finding.description}")
+        # Define column widths
+        severity_width = 8
+        icon_width = 2
+        title_width = 35
+        location_width = 25
+        checker_width = 15
+        confidence_width = 8
 
-        # Add evidence if available
-        if finding.evidence and self.verbose:
-            evidence = finding.evidence[0]  # Show primary evidence
-            card_lines.append(f"[dim]🔍 Evidence:[/dim] {evidence.description}")
+        # Format the output: [SEVERITY] [TITLE] LOCATION CHECKER CONFIDENCE FILE:LINE
+        severity_color = self._get_severity_color(finding.severity.value)
+        title_color = self._get_title_color(finding.type.value)
 
-        # Add fix suggestion if available
-        if finding.fixes and self.verbose:
-            fix = finding.fixes[0]  # Show primary fix
-            card_lines.append(f"[dim]💡 Suggestion:[/dim] {fix.prompt}")
+        # Create colored text objects
+        severity_text = Text(f"[{finding.severity.value.upper()}]", style=severity_color)
+        title_text = Text(f"[{finding.title}]", style=title_color)
+        checker_text = Text(finding.checker_name, style="magenta")
+        confidence_text = Text(confidence_str, style="green") if confidence_str else None
+        # Full path with line number at the end
+        full_path = finding.location.file.resolve() if hasattr(finding.location.file, 'resolve') else finding.location.file
+        full_path_text = Text(f"{full_path}:{finding.location.line_start}" if finding.location.line_start else str(full_path), style="cyan")
 
-        # Create the card panel
-        card_content = "\n".join(card_lines)
-        card_panel = Panel(
-            card_content,
-            border_style=severity_color,
-            title=f"[bold]{index}[/bold]",
-            title_align="left",
-            padding=(0, 1)
-        )
+        # Combine all parts - single line output
+        combined_text = Text()
+        combined_text.append(severity_text)
+        combined_text.append(" ")
+        combined_text.append(title_text)
+        combined_text.append(" ")
+        combined_text.append(checker_text)
+        if confidence_text:
+            combined_text.append(" ")
+            combined_text.append(confidence_text)
+        combined_text.append(" ")
+        combined_text.append(full_path_text)
 
-        self.console.print(card_panel)
-        self.console.print()  # Add space between cards
+        self.console.print(combined_text)
 
     def _print_success_message(self) -> None:
         """Print a success message when no issues are found."""
@@ -292,18 +291,31 @@ class Printer:
             severity_order = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
             sorted_findings = sorted(results.findings, key=lambda f: severity_order.get(f.severity, 5))
 
+            # Print format description (plain text)
+            self.console.print("Format: [SEVERITY] [TITLE] CHECKER CONFIDENCE FULL_PATH:LINE")
+            self.console.print()
+
             for i, finding in enumerate(sorted_findings, 1):
-                self.console.print(f"{i}. [{finding.severity.value.upper()}] {finding.title}")
-                self.console.print(f"   File: {finding.location.file}")
-                self.console.print(f"   Line: {finding.location.line_start}")
-                self.console.print(f"   Type: {finding.type.value.replace('_', ' ').title()}")
-                self.console.print(f"   Checker: {finding.checker_name}")
-                self.console.print(f"   Description: {finding.description}")
+                confidence = finding.confidence_score()
+                confidence_str = f"{confidence:.1%}" if confidence > 0 else ""
 
-                if finding.fixes:
-                    self.console.print(f"   Suggestion: {finding.fixes[0].prompt}")
+                # Format the output: [SEVERITY] [TITLE] CHECKER CONFIDENCE FULL_PATH:LINE
+                severity_bracket = f"[{finding.severity.value.upper()}]"
+                title_bracket = f"[{finding.title}]"
+                checker_clean = finding.checker_name
+                confidence_clean = confidence_str
+                # Full path with line number at the end
+                full_path = finding.location.file.resolve() if hasattr(finding.location.file, 'resolve') else finding.location.file
+                full_path_clean = f"{full_path}:{finding.location.line_start}" if finding.location.line_start else str(full_path)
 
-                self.console.print()
+                # Combine all parts with spaces
+                line_parts = [severity_bracket, title_bracket, checker_clean]
+                if confidence_clean:
+                    line_parts.append(confidence_clean)
+                line_parts.append(full_path_clean)
+                line = " ".join(line_parts)
+
+                self.console.print(line)
 
     def _get_severity_color(self, severity: str) -> str:
         """Get Rich color for severity level."""
@@ -311,7 +323,7 @@ class Printer:
             "critical": "bold red",
             "high": "red",
             "medium": "yellow",
-            "low": "cyan",
+            "low": "orange1",
             "info": "dim blue",
         }
         return color_map.get(severity.lower(), "white")
@@ -338,6 +350,18 @@ class Printer:
             "style_issue": "🎨",
         }
         return icon_map.get(finding_type.lower(), "⚠️")
+
+    def _get_title_color(self, finding_type: str) -> str:
+        """Get color for finding type title."""
+        color_map = {
+            "ai_generated": "yellow",
+            "bad_practice": "red",
+            "code_smell": "purple",
+            "security_issue": "bold red",
+            "performance_issue": "orange1",
+            "style_issue": "cyan",
+        }
+        return color_map.get(finding_type.lower(), "white")
 
     def create_progress(self) -> Progress:
         """Create a progress bar for long operations."""
