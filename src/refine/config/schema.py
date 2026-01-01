@@ -39,7 +39,8 @@ class LLMConfig(BaseModel):
         default="gpt-4",
         description="Model name to use",
     )
-    api_key: str = Field(
+    api_key: Optional[str] = Field(
+        default=None,
         description="API key for the LLM provider",
     )
     base_url: Optional[str] = Field(

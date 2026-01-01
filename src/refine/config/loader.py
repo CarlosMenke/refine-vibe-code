@@ -12,8 +12,25 @@ except ImportError:
 from .schema import RefineConfig
 
 
-def find_config_file(start_path: Optional[Path] = None) -> Optional[Path]:
-    """Find configuration file by searching up the directory tree."""
+def find_global_config_file() -> Optional[Path]:
+    """Find global configuration file in standard locations."""
+    # Check standard XDG config directory first
+    xdg_config = os.environ.get("XDG_CONFIG_HOME", "~/.config")
+    xdg_config = Path(xdg_config).expanduser()
+    global_config = xdg_config / "refine" / "refine.toml"
+    if global_config.exists():
+        return global_config
+
+    # Fallback to ~/.refine.toml
+    legacy_config = Path.home() / ".refine.toml"
+    if legacy_config.exists():
+        return legacy_config
+
+    return None
+
+
+def find_project_config_file(start_path: Optional[Path] = None) -> Optional[Path]:
+    """Find project configuration file by searching up the directory tree."""
     if start_path is None:
         start_path = Path.cwd()
     elif not start_path.is_absolute():
@@ -42,30 +59,43 @@ def load_config_from_file(config_path: Path) -> dict:
         raise ValueError(f"Failed to load config from {config_path}: {e}")
 
 
-def load_config(config_path: Optional[Union[str, Path]] = None) -> RefineConfig:
+def load_config(config_path: Optional[Union[str, Path]] = None, scan_path: Optional[Path] = None) -> RefineConfig:
     """Load and merge configuration from multiple sources.
 
     Priority order (highest to lowest):
     1. Environment variables
     2. Explicit config file path
-    3. Auto-discovered config file (refine.toml)
-    4. Default configuration
+    3. Project config file (refine.toml in current/project directory)
+    4. Global config file (~/.config/refine/refine.toml or ~/.refine.toml)
+    5. Default configuration
     """
     # Start with default configuration
     config_dict = {}
 
-    # Load from auto-discovered config file
+    # Load from global config file
+    global_config_path = find_global_config_file()
+    if global_config_path:
+        global_config = load_config_from_file(global_config_path)
+        config_dict.update(global_config)
+
+    # Load from project config file
     if config_path is None:
-        config_path = find_config_file()
+        project_config_path = find_project_config_file(scan_path)
+    else:
+        project_config_path = None
 
     # Load from explicit config file
     if config_path is not None:
         config_path = Path(config_path)
         if config_path.exists():
-            file_config = load_config_from_file(config_path)
-            config_dict.update(file_config)
+            explicit_config = load_config_from_file(config_path)
+            config_dict = _deep_merge(config_dict, explicit_config)
         else:
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    elif project_config_path:
+        # Load from auto-discovered project config
+        project_config = load_config_from_file(project_config_path)
+        config_dict = _deep_merge(config_dict, project_config)
 
     # Load from environment variables
     env_config = _load_env_config()

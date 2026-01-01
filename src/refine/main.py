@@ -69,7 +69,7 @@ def scan(
     """Scan code for AI-generated patterns and bad coding practices."""
     try:
         # Load configuration
-        config_data = load_config(config)
+        config_data = load_config(config, path)
 
         # Override config with CLI options if provided
         if include_patterns:
@@ -147,16 +147,42 @@ def init(
         "-o",
         help="Output path for the configuration file",
     ),
+    global_config: bool = typer.Option(
+        False,
+        "--global",
+        help="Create global configuration file (~/.config/refine/refine.toml)",
+    ),
 ) -> None:
     """Generate a default configuration file."""
     try:
         from .config.schema import RefineConfig
+        from .config.loader import find_global_config_file
+
+        # Determine output path
+        if global_config:
+            global_path = find_global_config_file()
+            if global_path is None:
+                # Create the directory if it doesn't exist
+                import os
+                config_dir = Path.home() / ".config" / "refine"
+                config_dir.mkdir(parents=True, exist_ok=True)
+                output = config_dir / "refine.toml"
+            else:
+                output = global_path
+        elif output == Path("refine.toml") and not output.is_absolute():
+            # Default to current directory
+            output = Path.cwd() / output
+
+        # Check if file already exists
+        if output.exists():
+            if not typer.confirm(f"Configuration file already exists at {output}. Overwrite?"):
+                typer.echo("Configuration creation cancelled.")
+                return
 
         # Create default config
         config = RefineConfig()
 
         # Write to file
-        import tomllib
         if hasattr(config, 'model_dump_toml'):
             content = config.model_dump_toml()
         else:
@@ -164,7 +190,9 @@ def init(
             content = "# Default Refine Vibe Code configuration\n\n"
 
         output.write_text(content)
-        typer.echo(f"Configuration file created at: {output}")
+
+        config_type = "global" if global_config else "project"
+        typer.echo(f"{config_type.title()} configuration file created at: {output}")
 
     except Exception as e:
         typer.echo(f"Error creating config file: {e}", err=True)
