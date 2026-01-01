@@ -20,7 +20,7 @@ class TestRefineConfig:
         assert config.llm.model == "gpt-4"
         assert config.llm.temperature == 0.1
         assert config.checkers.enabled == [
-            "package_check", "boilerplate", "edge_cases", "naming_vibe"
+            "package_check", "boilerplate", "edge_cases", "naming_vibe", "comment_quality"
         ]
 
     def test_config_validation(self):
