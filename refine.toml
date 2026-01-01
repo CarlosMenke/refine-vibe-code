@@ -62,7 +62,8 @@ enabled = [
     "dependency_validation",
     "edge_cases",
     "naming_vibe",
-    "comment_quality"
+    "comment_quality",
+    "sql_injection",
 ]
 
 # Only run classical (AST-based) checkers
