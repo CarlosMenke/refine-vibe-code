@@ -36,6 +36,13 @@ Issues = "https://github.com/yourusername/refine-vibe-code/issues"
 [project.scripts]
 refine = "refine.main:app"
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/refine"]
 
