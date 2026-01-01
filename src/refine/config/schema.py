@@ -39,8 +39,7 @@ class LLMConfig(BaseModel):
         default="gpt-4",
         description="Model name to use",
     )
-    api_key: Optional[str] = Field(
-        default=None,
+    api_key: str = Field(
         description="API key for the LLM provider",
     )
     base_url: Optional[str] = Field(
@@ -155,6 +154,7 @@ class RefineConfig(BaseModel):
             "llm": {
                 "provider": self.llm.provider,
                 "model": self.llm.model,
+                "api_key": self.llm.api_key,
                 "temperature": self.llm.temperature,
                 "max_tokens": self.llm.max_tokens,
                 "timeout": self.llm.timeout,
