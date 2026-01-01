@@ -474,7 +474,7 @@ wheels = [
 [[package]]
 name = "refine-vibe-code"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "detect-secrets" },
     { name = "httpx" },
