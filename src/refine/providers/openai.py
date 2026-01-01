@@ -14,22 +14,33 @@ class OpenAIProvider(LLMProvider):
         self._client = None
 
     def is_available(self) -> bool:
-        """Check if OpenAI provider is available."""
-        api_key = self.config.llm.api_key or os.getenv("OPENAI_API_KEY")
+        """Check if OpenAI/Google provider is available."""
+        if self.config.llm.provider == "google":
+            api_key = self.config.llm.api_key or os.getenv("GOOGLE_API_KEY")
+        else:
+            api_key = self.config.llm.api_key or os.getenv("OPENAI_API_KEY")
         return bool(api_key)
 
     def analyze_code(self, prompt: str) -> str:
-        """Analyze code using OpenAI API."""
+        """Analyze code using OpenAI/Google API."""
         if not self.is_available():
-            raise ValueError("OpenAI API key not configured")
+            if self.config.llm.provider == "google":
+                raise ValueError("Google API key not configured")
+            else:
+                raise ValueError("OpenAI API key not configured")
 
         try:
             from openai import OpenAI
 
             # Initialize client if not already done
             if self._client is None:
-                api_key = self.config.llm.api_key or os.getenv("OPENAI_API_KEY")
-                base_url = self.config.llm.base_url
+                if self.config.llm.provider == "google":
+                    api_key = self.config.llm.api_key or os.getenv("GOOGLE_API_KEY")
+                    # Use Google's OpenAI-compatible API endpoint
+                    base_url = self.config.llm.base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
+                else:
+                    api_key = self.config.llm.api_key or os.getenv("OPENAI_API_KEY")
+                    base_url = self.config.llm.base_url
 
                 self._client = OpenAI(
                     api_key=api_key,
@@ -63,7 +74,10 @@ class OpenAIProvider(LLMProvider):
 
     def _get_api_key_from_env(self) -> Optional[str]:
         """Get API key from environment variables."""
-        return os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APIKEY")
+        if self.config.llm.provider == "google":
+            return os.getenv("GOOGLE_API_KEY")
+        else:
+            return os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_APIKEY")
 
 
 
