@@ -98,14 +98,25 @@ def scan(
             )
             raise typer.Exit(code=1)
         elif not classical_only and not llm_available and any("quality" in checker or "vibe" in checker for checker in config_data.checkers.enabled):
-            # Warn if LLM checkers are enabled but not available
-            typer.echo(
-                "⚠️  Warning: LLM-based checkers are enabled but no LLM provider is configured.\n"
-                "   LLM checkers will be skipped. To enable them:\n"
-                "   1. For OpenAI: Set OPENAI_API_KEY environment variable\n"
-                "   2. For Google Gemini: Set GOOGLE_API_KEY environment variable and configure provider in refine.toml\n"
-                "   3. For local LLM: Install Ollama and configure provider in refine.toml\n"
-            )
+            # Print big warning about falling back to mock analysis
+            typer.echo()
+            typer.echo("╔══════════════════════════════════════════════════════════════════════════════╗")
+            typer.echo("║                              ⚠️  WARNING ⚠️                               ║")
+            typer.echo("║                                                                            ║")
+            typer.echo("║  LLM-based checkers are enabled but no LLM provider is configured!       ║")
+            typer.echo("║                                                                            ║")
+            typer.echo("║  FALLING BACK TO HARDCODED MOCK ANALYSIS                                  ║")
+            typer.echo("║                                                                            ║")
+            typer.echo("║  This will only detect obvious patterns and may miss many issues.        ║")
+            typer.echo("║  For proper AI-generated code detection, configure an LLM provider:     ║")
+            typer.echo("║                                                                            ║")
+            typer.echo("║  1. OpenAI:    Set OPENAI_API_KEY environment variable                    ║")
+            typer.echo("║  2. Google:    Set GOOGLE_API_KEY + configure provider in refine.toml    ║")
+            typer.echo("║  3. Local:     Install Ollama + set provider = \"local\"                 ║")
+            typer.echo("║                                                                            ║")
+            typer.echo("║  Run 'uv run refine init' to generate a configuration file.              ║")
+            typer.echo("╚══════════════════════════════════════════════════════════════════════════════╝")
+            typer.echo()
 
         # Initialize printer
         printer = Printer(output_format=output_format, verbose=verbose, root_path=path)
