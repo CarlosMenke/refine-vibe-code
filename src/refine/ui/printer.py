@@ -19,10 +19,11 @@ from ..core.results import ScanResults, Finding, Severity
 class Printer:
     """Handles terminal output formatting with Rich."""
 
-    def __init__(self, output_format: str = "rich", verbose: bool = False, color: bool = True):
+    def __init__(self, output_format: str = "rich", verbose: bool = False, color: bool = True, root_path: Optional[Path] = None):
         self.output_format = output_format
         self.verbose = verbose
         self.color = color
+        self.root_path = root_path or Path.cwd()
         # Use responsive width with a reasonable minimum and maximum
         terminal_width = Console().size.width if hasattr(Console(), 'size') else 120
         width = min(max(terminal_width, 80), 140)  # Between 80 and 140 chars
@@ -178,9 +179,9 @@ class Printer:
         title_text = Text(f"[{finding.title}]", style=title_color)
         checker_text = Text(finding.checker_name, style="magenta")
         confidence_text = Text(confidence_str, style="green") if confidence_str else None
-        # Full path with line number at the end
-        full_path = finding.location.file.resolve() if hasattr(finding.location.file, 'resolve') else finding.location.file
-        full_path_text = Text(f"{full_path}:{finding.location.line_start}" if finding.location.line_start else str(full_path), style="cyan")
+        # Relative path with line number at the end
+        relative_path = self._get_relative_path(finding.location.file)
+        full_path_text = Text(f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path, style="cyan")
 
         # Combine all parts - single line output
         combined_text = Text()
@@ -304,9 +305,9 @@ class Printer:
                 title_bracket = f"[{finding.title}]"
                 checker_clean = finding.checker_name
                 confidence_clean = confidence_str
-                # Full path with line number at the end
-                full_path = finding.location.file.resolve() if hasattr(finding.location.file, 'resolve') else finding.location.file
-                full_path_clean = f"{full_path}:{finding.location.line_start}" if finding.location.line_start else str(full_path)
+                # Relative path with line number at the end
+                relative_path = self._get_relative_path(finding.location.file)
+                full_path_clean = f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path
 
                 # Combine all parts with spaces
                 line_parts = [severity_bracket, title_bracket, checker_clean]
@@ -362,6 +363,14 @@ class Printer:
             "style_issue": "cyan",
         }
         return color_map.get(finding_type.lower(), "white")
+
+    def _get_relative_path(self, file_path: Path) -> str:
+        """Get relative path from root directory."""
+        try:
+            return str(file_path.relative_to(self.root_path))
+        except ValueError:
+            # If path is not relative to root_path, return the absolute path as fallback
+            return str(file_path)
 
     def create_progress(self) -> Progress:
         """Create a progress bar for long operations."""

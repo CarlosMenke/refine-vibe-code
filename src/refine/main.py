@@ -82,7 +82,7 @@ def scan(
             config_data.checkers.llm_only = True
 
         # Initialize printer
-        printer = Printer(output_format=output_format, verbose=verbose)
+        printer = Printer(output_format=output_format, verbose=verbose, root_path=path)
 
         # Print header
         printer.print_header("Refine Vibe Code Scanner")
