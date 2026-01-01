@@ -96,7 +96,8 @@ def scan(
 
         # Exit with appropriate code
         if results.has_issues():
-            raise typer.Exit(code=1)
+            import sys
+            sys.exit(1)
 
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
