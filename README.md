@@ -1,44 +1,98 @@
-# Refine Vibe Code
+# 🔍 Refine Vibe Code
 
-A CLI tool for professional programmers to identify AI-generated code patterns, bad coding practices, and potential issues in their codebase.
+A powerful CLI tool that analyzes your codebase for AI-generated code patterns, security vulnerabilities, and code quality issues. Perfect for developers who want to maintain professional code standards.
 
-## Features
+## ✨ Quick Start (2 minutes setup)
 
-- **AI Code Detection**: Identify code patterns typical of AI-generated content
-- **Classical Analysis**: Fast AST-based checks for common issues
-- **LLM-Powered Analysis**: Deep reasoning checks using OpenAI, GitHub Models, or local Ollama/Llama.cpp
-- **Multiple Output Formats**: Rich terminal output, JSON, or plain text
-- **Configurable**: TOML-based configuration with environment variable support
-- **Extensible**: Plugin architecture for custom checkers
+### 1. Install uv (if you don't have it)
 
-## Installation
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-### From Source
+### 2. Install Refine Vibe Code
 
+**Option A: Install globally (recommended)**
+```bash
+uv tool install refine-vibe-code
+```
+
+**Option B: Install from source**
 ```bash
 git clone https://github.com/CarlosMenke/refine-vibe-code.git
 cd refine-vibe-code
-
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install the package
-uv venv .venv
-source .venv/bin/activate
 uv sync
-uv run refine
 ```
 
-## Quick Start
+### LLM Integration (for deeper analysis)
 
-### Basic Usage
+For the best results, configure an LLM provider:
+**Google Gemini**:
+```toml
+# In your refine.toml
+[llm]
+provider = "google"
+model = "gemini-2.0-flash-exp"
+api_key = "your-google-api-key"
+```
+### 3. Scan your code
 
 ```bash
 # Scan current directory
-uv run refine scan
+refine scan
 
+# Or scan a specific folder
+refine scan /path/to/your/project
+
+# Get help
+refine --help
 ```
 
-### Configuration
+That's it! 🎉 Your code will be analyzed and you'll see a detailed report of any issues found.
 
-Create a `refine.toml` file in your project root:
+## 🚀 Usage Examples
+
+### Basic scanning
+```bash
+# Scan current directory with rich output (default)
+refine scan
+
+# Scan with JSON output for CI/CD integration
+refine scan --format json
+
+# Scan specific files only
+refine scan --include "*.py" --include "*.js"
+
+# Skip certain directories
+refine scan --exclude "node_modules/" --exclude "*.min.js"
+```
+
+### Configuration (optional but recommended)
+
+For advanced usage, create a `refine.toml` configuration file:
+
+```bash
+# Generate a default config file
+refine init
+```
+
+Then edit `refine.toml` to customize:
+- Which checks to run
+- File patterns to include/exclude
+- LLM provider settings (OpenAI, Google Gemini)
+- Output preferences
+
+## 🛡️ What It Checks
+
+### Security Issues
+- **Hardcoded Secrets**: API keys, passwords, tokens in your code
+- **SQL Injection**: Vulnerable database queries
+- **Dangerous AI Logic**: Unsafe AI/ML practices
+- **Dependency Validation**: Malicious or outdated packages
+
+### Code Quality
+- **AI-Generated Code**: Detects patterns typical of AI-generated content
+- **Comment Quality**: Identifies useless or redundant comments
+- **Naming Conventions**: Checks for AI-generated naming patterns
+- **Edge Cases**: Finds potential bugs and missing error handling
+- **Package Issues**: Import problems, missing files, etc.
