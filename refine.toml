@@ -63,6 +63,7 @@ enabled = [
     "edge_cases",
     "naming_vibe",
     "comment_quality",
+    "dangerous_ai_logic",
     "sql_injection",
 ]
 
