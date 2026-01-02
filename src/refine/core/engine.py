@@ -58,8 +58,11 @@ class ScanEngine:
                 self.auditor.stats.add_error(f"Failed to scan {file_path}: {e}")
                 results.files_skipped += 1
 
+        # Deduplicate findings to prevent the same line being flagged multiple times
+        deduplicated_findings = self._deduplicate_findings(all_findings)
+
         # Finalize results
-        results.findings = all_findings
+        results.findings = deduplicated_findings
         results.files_scanned = len(files_to_scan) - results.files_skipped
         results.scan_time = time.time() - start_time
         results.config_used = self.config.model_dump()
@@ -73,6 +76,56 @@ class ScanEngine:
         )
 
         return results
+
+    def _deduplicate_findings(self, findings: List[Finding]) -> List[Finding]:
+        """Deduplicate findings to prevent the same line being flagged multiple times."""
+        if not findings:
+            return findings
+
+        # Group findings by (file_path, line_number)
+        finding_groups = {}
+        for finding in findings:
+            key = (str(finding.location.file), finding.location.line_start or 0)
+            if key not in finding_groups:
+                finding_groups[key] = []
+            finding_groups[key].append(finding)
+
+        deduplicated = []
+
+        for (file_path, line_num), group_findings in finding_groups.items():
+            if len(group_findings) == 1:
+                # No duplicates, keep the single finding
+                deduplicated.append(group_findings[0])
+            else:
+                # Multiple findings for same line, deduplicate
+                deduplicated.extend(self._resolve_duplicates(group_findings))
+
+        return deduplicated
+
+    def _resolve_duplicates(self, findings: List[Finding]) -> List[Finding]:
+        """Resolve duplicate findings for the same line."""
+        if not findings:
+            return findings
+
+        # Special handling for SQL injection checkers - they often detect the same issues
+        sql_injection_checkers = {'contextual_sqli_audit', 'sql_injection'}
+        sql_findings = [f for f in findings if f.checker_name in sql_injection_checkers]
+        other_findings = [f for f in findings if f.checker_name not in sql_injection_checkers]
+
+        if len(sql_findings) > 1:
+            # If we have multiple SQL injection findings, keep only the one with highest severity
+            # Prefer sql_injection over contextual_sqli_audit if same severity
+            severity_order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+            sql_findings.sort(key=lambda f: (
+                -severity_order.get(f.severity.value, 0),  # Higher severity first
+                1 if f.checker_name == 'sql_injection' else 0,  # Prefer sql_injection
+                -f.confidence_score()  # Higher confidence first
+            ))
+            # Keep only the best SQL finding
+            sql_findings = sql_findings[:1]
+
+        # Return deduplicated SQL findings plus any other findings
+        return sql_findings + other_findings
 
     def _discover_files(self, path: Path) -> List[Path]:
         """Discover files to scan based on configuration."""

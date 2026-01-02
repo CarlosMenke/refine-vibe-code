@@ -66,20 +66,28 @@ class Auditor:
         # Run classical checkers first (fast)
         for checker in classical_checkers:
             try:
-                checker_findings = checker.check_file(file_path, content)
+                checker_findings = checker.check_file(file_path, content, self.printer)
                 findings.extend(checker_findings)
             except Exception as e:
                 self.stats.add_error(f"Classical checker '{checker.name}' failed on {file_path}: {e}")
 
         # Run LLM checkers if appropriate
         if self.should_use_llm(file_path, content):
+            if self.printer.debug:
+                self.printer.print_debug(f"Running {len(llm_checkers)} LLM checkers")
             for checker in llm_checkers:
                 try:
-                    checker_findings = checker.check_file(file_path, content)
+                    if self.printer.debug:
+                        self.printer.print_debug(f"Running LLM checker: {checker.name}")
+                    checker_findings = checker.check_file(file_path, content, self.printer)
+                    if self.printer.debug:
+                        self.printer.print_debug(f"LLM checker {checker.name} found {len(checker_findings)} findings")
                     findings.extend(checker_findings)
                     self.stats.llm_calls += 1
                 except Exception as e:
                     self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {e}")
+        elif self.printer.debug:
+            self.printer.print_debug(f"Skipping LLM checkers (should_use_llm=False)")
 
         return findings
 
