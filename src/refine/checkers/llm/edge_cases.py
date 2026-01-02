@@ -1,11 +1,14 @@
 """LLM-based checker for edge cases and potential bugs."""
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
 from refine.providers import get_provider
+
+if TYPE_CHECKING:
+    from refine.ui.printer import Printer
 
 
 class EdgeCasesChecker(BaseChecker):
@@ -21,7 +24,7 @@ class EdgeCasesChecker(BaseChecker):
     def _get_supported_extensions(self) -> List[str]:
         return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs"]
 
-    def check_file(self, file_path: Path, content: str) -> List[Finding]:
+    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze code for edge cases and potential bugs."""
         findings = []
 
@@ -109,8 +112,16 @@ Only include actual issues you find. If no issues are found, return {{"issues": 
         try:
             import json
 
+            # Strip markdown code blocks if present
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
             # Try to parse JSON response
-            data = json.loads(response.strip())
+            data = json.loads(cleaned_response)
 
             for issue in data.get("issues", []):
                 finding = self._create_finding_from_issue(issue, file_path, content)

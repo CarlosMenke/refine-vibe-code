@@ -1,11 +1,14 @@
 """LLM-based checker for naming conventions and code style."""
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
 from refine.providers import get_provider
+
+if TYPE_CHECKING:
+    from refine.ui.printer import Printer
 
 
 class NamingVibeChecker(BaseChecker):
@@ -21,21 +24,19 @@ class NamingVibeChecker(BaseChecker):
     def _get_supported_extensions(self) -> List[str]:
         return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs"]
 
-    def check_file(self, file_path: Path, content: str) -> List[Finding]:
+    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze code for naming and style issues."""
         findings = []
-
-        # Skip very small or very large files
-        lines = content.splitlines()
-        if len(lines) < 10 or len(lines) > 300:
-            return findings
 
         try:
             # Get LLM provider
             provider = get_provider()
 
+            # Sample content to avoid timeout with large files
+            sampled_content = self._sample_content(content)
+
             # Create analysis prompt
-            prompt = self._create_analysis_prompt(file_path, content)
+            prompt = self._create_analysis_prompt(file_path, sampled_content)
 
             # Get LLM analysis
             response = provider.analyze_code(prompt)
@@ -48,6 +49,58 @@ class NamingVibeChecker(BaseChecker):
             pass
 
         return findings
+
+    def _extract_code_snippet(self, lines: List[str], line_number: int) -> str:
+        """Extract a 1-2 line code snippet around the issue line."""
+        if not lines or line_number < 1 or line_number > len(lines):
+            return ""
+
+        # Convert to 0-based indexing
+        idx = line_number - 1
+
+        # Get the problematic line and maybe one context line
+        snippet_lines = []
+
+        # Add the problematic line
+        if idx < len(lines):
+            snippet_lines.append(lines[idx])
+
+        # Add one line of context if available (before or after)
+        if idx > 0 and not lines[idx-1].strip():  # If previous line is empty, add next line
+            if idx + 1 < len(lines):
+                snippet_lines.append(lines[idx + 1])
+        elif idx + 1 < len(lines) and not lines[idx + 1].strip():  # If next line is empty, add previous line
+            if idx > 0:
+                snippet_lines.insert(0, lines[idx - 1])
+
+        # Join with newlines, but limit to 2 lines max
+        return '\n'.join(snippet_lines[:2])
+
+    def _sample_content(self, content: str) -> str:
+        """Sample content to avoid timeout with large files."""
+        lines = content.splitlines()
+        if len(lines) <= 100:
+            return content
+
+        # For large files, sample representative sections
+        # Keep the first 50 lines, then sample every 10th line, then last 50 lines
+        sampled_lines = []
+
+        # First 50 lines
+        sampled_lines.extend(lines[:50])
+
+        # Sample from middle (every 10th line)
+        middle_start = 50
+        middle_end = len(lines) - 50
+        if middle_end > middle_start:
+            for i in range(middle_start, middle_end, 10):
+                sampled_lines.append(lines[i])
+
+        # Last 50 lines
+        sampled_lines.extend(lines[-50:])
+
+        sampled_content = '\n'.join(sampled_lines)
+        return sampled_content
 
     def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
         """Create a prompt for LLM analysis of naming and style."""
@@ -110,8 +163,16 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
         try:
             import json
 
+            # Strip markdown code blocks if present
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
             # Try to parse JSON response
-            data = json.loads(response.strip())
+            data = json.loads(cleaned_response)
 
             for issue in data.get("issues", []):
                 finding = self._create_finding_from_issue(issue, file_path, content)
@@ -145,6 +206,9 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
         if line_number < 1 or line_number > len(lines):
             line_number = 1
 
+        # Extract code snippet (1-2 lines around the issue)
+        code_snippet = self._extract_code_snippet(lines, line_number)
+
         # Create description with suggestions
         description = issue.get("description", "LLM detected a naming or style issue")
 
@@ -167,6 +231,7 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
                 line_start=line_number,
             ),
             checker_name=self.name,
+            code_snippet=code_snippet,  # Add the code snippet
             evidence=[Evidence(
                 type="llm_analysis",
                 description=f"LLM analysis: {issue.get('description', '')}",

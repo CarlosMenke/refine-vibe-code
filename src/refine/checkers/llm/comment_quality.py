@@ -1,12 +1,15 @@
 """LLM-based checker for detecting bad comments and docstrings."""
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 import re
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
 from refine.providers import get_provider
+
+if TYPE_CHECKING:
+    from refine.ui.printer import Printer
 
 
 class CommentQualityChecker(BaseChecker):
@@ -43,14 +46,9 @@ class CommentQualityChecker(BaseChecker):
     def _get_supported_extensions(self) -> List[str]:
         return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs", ".php", ".rb"]
 
-    def check_file(self, file_path: Path, content: str) -> List[Finding]:
+    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze comments and docstrings for quality issues."""
         findings = []
-
-        # Skip very small or very large files
-        lines = content.splitlines()
-        if len(lines) < 5 or len(lines) > 500:
-            return findings
 
         # Quick check for presence of comments/docstrings
         if not self._has_comments_or_docstrings(content, file_path.suffix):
@@ -68,8 +66,14 @@ class CommentQualityChecker(BaseChecker):
             # Create analysis prompt
             prompt = self._create_analysis_prompt(file_path, content)
 
+            if printer and printer.debug:
+                printer.print_debug(f"LLM prompt for {file_path.name}: {prompt[:200]}...")
+
             # Get LLM analysis
             response = provider.analyze_code(prompt)
+
+            if printer and printer.debug:
+                printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
 
             # Parse response and create findings
             findings.extend(self._parse_llm_response(response, file_path, content))
@@ -273,16 +277,27 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
         try:
             import json
 
+            # Strip markdown code blocks if present
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
             # Try to parse JSON response
-            data = json.loads(response.strip())
+            data = json.loads(cleaned_response)
 
             for issue in data.get("issues", []):
                 finding = self._create_finding_from_issue(issue, file_path, content)
                 if finding:
                     findings.append(finding)
 
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
             # If JSON parsing fails, try text parsing
+            if printer and printer.debug:
+                printer.print_debug(f"JSON parsing failed: {e}, trying text parsing")
+                printer.print_debug(f"Raw response: {response[:1000]}...")
             findings.extend(self._parse_text_response(response, file_path, content))
 
         return findings
