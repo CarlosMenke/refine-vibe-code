@@ -8,7 +8,7 @@ const API_KEY = "sk-1234567890abcdef1234567890abcdef12345678";
 const DATABASE_PASSWORD = "super_secret_db_password_123!";
 const JWT_SECRET = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
 
-// Dangerous AI logic patterns
+// Bad ML code patterns
 const tf = require('@tensorflow/tfjs');
 const openai = require('openai');
 

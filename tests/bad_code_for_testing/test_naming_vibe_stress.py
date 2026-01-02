@@ -867,3 +867,4 @@ def calculate_sum_total_of_values(value_list):
 def validate_and_check_input_data(input_data):
     """Unnecessary duplication."""
     return input_data is not None
+

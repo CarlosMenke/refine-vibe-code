@@ -1,5 +1,5 @@
 """
-Comprehensive stress test file for dangerous AI logic checker.
+Comprehensive stress test file for bad ML code checker.
 Tests various AI/ML security scenarios, unsafe practices, and edge cases.
 """
 
@@ -807,4 +807,3 @@ def dangerous_distributed_training():
         return model
 
     return distributed_training_step
-

@@ -909,3 +909,4 @@ def use_optional_feature():
     else:
         # Fallback that might not work properly
         return "fallback_result"
+

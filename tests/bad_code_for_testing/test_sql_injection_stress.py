@@ -878,3 +878,4 @@ def vulnerable_mock_database():
     query = f"SELECT * FROM users WHERE username = '{user_input}'"
     # Should still be flagged even in mock
     db.execute(query)
+
