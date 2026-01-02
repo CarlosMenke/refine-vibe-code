@@ -128,7 +128,7 @@ def _load_env_config() -> dict:
             _set_nested_value(config, parts, value)
         else:
             # Handle top-level config
-            if config_key in ["verbose", "color", "classical_only", "llm_only", "show_fixes"]:
+            if config_key in ["verbose", "color", "classical_only", "llm_only", "show_fixes", "debug"]:
                 config[config_key] = value.lower() in ("true", "1", "yes", "on")
             elif config_key in ["max_file_size", "max_files", "max_tokens", "timeout"]:
                 try:
@@ -160,7 +160,7 @@ def _set_nested_value(config: dict, keys: list, value: str) -> None:
     last_key = keys[-1]
 
     # Type conversion based on key
-    if last_key in ["verbose", "color", "classical_only", "llm_only", "show_fixes"]:
+    if last_key in ["verbose", "color", "classical_only", "llm_only", "show_fixes", "debug"]:
         current[last_key] = value.lower() in ("true", "1", "yes", "on")
     elif last_key in ["max_file_size", "max_files", "max_tokens", "timeout"]:
         try:

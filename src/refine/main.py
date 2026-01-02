@@ -65,6 +65,12 @@ def scan(
         "--llm-only",
         help="Only run LLM-based checkers",
     ),
+    debug: Optional[bool] = typer.Option(
+        None,
+        "--debug",
+        "-d",
+        help="Enable debug output with detailed analysis information",
+    ),
 ) -> None:
     """Scan code for AI-generated patterns and bad coding practices."""
     try:
@@ -80,6 +86,10 @@ def scan(
             config_data.checkers.classical_only = True
         if llm_only:
             config_data.checkers.llm_only = True
+
+        # Use debug from config if not explicitly set via CLI
+        if debug is None:
+            debug = config_data.output.debug
 
         # Check LLM provider availability
         from .providers import get_provider
@@ -117,7 +127,7 @@ def scan(
             typer.echo()
 
         # Initialize printer
-        printer = Printer(output_format=output_format, verbose=verbose, root_path=path)
+        printer = Printer(output_format=output_format, verbose=verbose, debug=debug, root_path=path)
 
         # Print header
         printer.print_header("Refine Vibe Code Scanner")

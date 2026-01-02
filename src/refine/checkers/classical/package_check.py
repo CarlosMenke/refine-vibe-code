@@ -3,10 +3,13 @@
 import ast
 import re
 from pathlib import Path
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Optional, TYPE_CHECKING
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
+
+if TYPE_CHECKING:
+    from refine.ui.printer import Printer
 
 
 class PackageCheckChecker(BaseChecker):
@@ -22,9 +25,12 @@ class PackageCheckChecker(BaseChecker):
     def _get_supported_extensions(self) -> List[str]:
         return [".py"]
 
-    def check_file(self, file_path: Path, content: str) -> List[Finding]:
+    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Check a Python file for packaging and import issues."""
         findings = []
+
+        if printer and printer.debug:
+            printer.print_debug(f"Checking file {file_path.name} for package issues")
 
         try:
             # Parse the AST

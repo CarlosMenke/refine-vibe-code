@@ -3,10 +3,13 @@
 import re
 import ast
 from pathlib import Path
-from typing import List, Dict, Pattern, Any
+from typing import List, Dict, Pattern, Any, Optional, TYPE_CHECKING
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
+
+if TYPE_CHECKING:
+    from refine.ui.printer import Printer
 
 
 class BoilerplateChecker(BaseChecker):
@@ -57,7 +60,7 @@ class BoilerplateChecker(BaseChecker):
     def _get_supported_extensions(self) -> List[str]:
         return [".py"]
 
-    def check_file(self, file_path: Path, content: str) -> List[Finding]:
+    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Check file for boilerplate patterns."""
         findings = []
         lines = content.splitlines()

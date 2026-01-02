@@ -106,6 +106,10 @@ class OutputConfig(BaseModel):
         default=True,
         description="Enable colored output",
     )
+    debug: bool = Field(
+        default=False,
+        description="Enable debug output with detailed analysis information",
+    )
 
 
 class RefineConfig(BaseModel):
@@ -170,6 +174,7 @@ class RefineConfig(BaseModel):
                 "verbose": self.output.verbose,
                 "show_fixes": self.output.show_fixes,
                 "color": self.output.color,
+                "debug": self.output.debug,
             },
         }
 
