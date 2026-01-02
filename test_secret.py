@@ -1,0 +1,3 @@
+# Test file for hardcoded secrets
+API_KEY = "sk-or-v1-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+PASSWORD = "my_secret_password"
