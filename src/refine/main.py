@@ -16,7 +16,7 @@ app = typer.Typer(
     epilog="""
 Output Format Example:
 
-  [[bold red]HIGH[/bold red]] [[magenta]naming_vibe[/magenta]] [bold cyan]Poor variable naming convention[/bold cyan] [green](85.7%)[/green] [cyan]file_name.py:56[/cyan]
+  [[bold red]HIGH[/bold red]] [[magenta]vibe_naming[/magenta]] [bold cyan]Poor variable naming convention[/bold cyan] [green](85.7%)[/green] [cyan]file_name.py:56[/cyan]
 
    \t[dim]\tDetailed explanation for the issue[/dim]
 
