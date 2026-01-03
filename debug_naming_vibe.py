@@ -6,12 +6,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 import json
 from pathlib import Path
-from refine.checkers.llm.naming_vibe import NamingVibeChecker
+from refine.checkers.llm.vibe_naming import VibeNamingChecker
 from refine.providers import get_provider
 
 # Get the LLM response
-checker = NamingVibeChecker()
-file_path = Path('tests/bad_code_for_testing/test_naming_vibe_stress.py')
+checker = VibeNamingChecker()
+file_path = Path('tests/bad_code_for_testing/test_naming_vibe_short.py')
 with open(file_path, 'r') as f:
     content = f.read()
 
