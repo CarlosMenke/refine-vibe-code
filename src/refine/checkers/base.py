@@ -69,7 +69,7 @@ def get_all_checkers() -> List[BaseChecker]:
     from .classical.hardcoded_secrets import HardcodedSecretsChecker
     from .classical.dependency_validation import DependencyValidationChecker
     from .llm.edge_cases import EdgeCasesChecker
-    from .llm.naming_vibe import NamingVibeChecker
+    from .llm.vibe_naming import VibeNamingChecker
     from .llm.comment_quality import CommentQualityChecker
     from .llm.dangerous_ai_logic import DangerousAILogicChecker
     from .hybrid.sql_injection import SQLInjectionChecker
@@ -80,7 +80,7 @@ def get_all_checkers() -> List[BaseChecker]:
         HardcodedSecretsChecker(),
         DependencyValidationChecker(),
         EdgeCasesChecker(),
-        NamingVibeChecker(),
+        VibeNamingChecker(),
         CommentQualityChecker(),
         DangerousAILogicChecker(),
         SQLInjectionChecker(),
