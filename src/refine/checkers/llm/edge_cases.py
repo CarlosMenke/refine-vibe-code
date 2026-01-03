@@ -84,8 +84,8 @@ class EdgeCasesChecker(BaseChecker):
         # Build numbered output
         numbered_lines = []
         for i, line in enumerate(snippet_lines, start_idx + 1):
-            marker = ">" if i == line_number else " "
-            numbered_lines.append(f"{marker} {i:3d}| {line}")
+            marker = ">" if i == line_number else ""
+            numbered_lines.append(f"{marker:>1} {i:3d}| {line}")
 
         return "\n".join(numbered_lines)
 
