@@ -86,7 +86,7 @@ class DangerousAILogicChecker(BaseChecker):
 
     def _get_supported_extensions(self) -> List[str]:
         """Return supported file extensions."""
-        return ['.py', '.ipynb', '.pyw']
+        return ['.py']
 
     def check_file(self, file_path: Path, content: str) -> List[Finding]:
         """Check a file for dangerous AI logic and unsafe ML practices."""

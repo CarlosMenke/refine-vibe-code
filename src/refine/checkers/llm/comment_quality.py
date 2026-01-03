@@ -44,7 +44,7 @@ class CommentQualityChecker(BaseChecker):
         return "\n".join(numbered_lines)
 
     def _get_supported_extensions(self) -> List[str]:
-        return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs", ".php", ".rb"]
+        return [".py"]
 
     def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze comments and docstrings for quality issues."""
@@ -168,54 +168,12 @@ class CommentQualityChecker(BaseChecker):
 
     def _has_comments_or_docstrings(self, content: str, extension: str) -> bool:
         """Quick check if file contains comments or docstrings."""
-        if extension == ".py":
-            # Python docstrings and comments
-            return '"""' in content or "'''" in content or "#" in content
-        elif extension in [".js", ".ts"]:
-            # JavaScript/TypeScript comments
-            return "//" in content or "/*" in content
-        elif extension == ".java":
-            # Java comments
-            return "//" in content or "/*" in content or "/**" in content
-        elif extension in [".cpp", ".c"]:
-            # C/C++ comments
-            return "//" in content or "/*" in content
-        elif extension == ".go":
-            # Go comments
-            return "//" in content
-        elif extension == ".rs":
-            # Rust comments
-            return "//" in content or "/*" in content
-        elif extension == ".php":
-            # PHP comments
-            return "//" in content or "#" in content or "/*" in content
-        elif extension == ".rb":
-            # Ruby comments
-            return "#" in content
-        return False
+        # Python docstrings and comments
+        return '"""' in content or "'''" in content or "#" in content
 
     def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
         """Create a prompt for LLM analysis of comments and docstrings."""
-        file_ext = file_path.suffix.lower()
-
-        language_map = {
-            ".py": "Python",
-            ".js": "JavaScript",
-            ".ts": "TypeScript",
-            ".java": "Java",
-            ".cpp": "C++",
-            ".c": "C",
-            ".go": "Go",
-            ".rs": "Rust",
-            ".php": "PHP",
-            ".rb": "Ruby",
-        }
-
-        language = language_map.get(file_ext, "programming language")
-
-        comment_syntax = self._get_comment_syntax(file_ext)
-
-        return f"""Analyze this {language} code for poor quality comments and docstrings that appear to be AI-generated or unnecessary. Look for:
+        return f"""Analyze this Python code for poor quality comments and docstrings that appear to be AI-generated or unnecessary. Look for:
 
 1. Comments that simply restate what the code does without adding value
 2. Generic or boilerplate docstrings (e.g., "This function does X" where X is obvious)
@@ -227,11 +185,9 @@ class CommentQualityChecker(BaseChecker):
 8. Docstrings that don't follow language conventions or are unnecessarily detailed
 
 Code file: {file_path.name}
-Language: {language}
-Comment syntax: {comment_syntax}
 
 Code:
-```{(language.lower())}
+```python
 {content}
 ```
 
@@ -253,22 +209,6 @@ Provide your analysis in the following JSON format:
 }}
 
 Focus on actual issues. If no significant issues are found, return {{"issues": []}}."""
-
-    def _get_comment_syntax(self, extension: str) -> str:
-        """Get comment syntax description for the language."""
-        syntax_map = {
-            ".py": "# for single line, ''' or \"\"\" for docstrings/multi-line",
-            ".js": "// for single line, /* */ for multi-line",
-            ".ts": "// for single line, /* */ for multi-line",
-            ".java": "// for single line, /* */ for multi-line, /** */ for doc",
-            ".cpp": "// for single line, /* */ for multi-line",
-            ".c": "// for single line, /* */ for multi-line",
-            ".go": "// for single line, /* */ for multi-line",
-            ".rs": "// for single line, /* */ for multi-line",
-            ".php": "// for single line, # for single line, /* */ for multi-line",
-            ".rb": "# for single line",
-        }
-        return syntax_map.get(extension, "standard comment syntax")
 
     def _parse_llm_response(self, response: str, file_path: Path, content: str) -> List[Finding]:
         """Parse LLM response and create findings."""

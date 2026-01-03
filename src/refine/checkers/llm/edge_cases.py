@@ -22,7 +22,7 @@ class EdgeCasesChecker(BaseChecker):
         )
 
     def _get_supported_extensions(self) -> List[str]:
-        return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs"]
+        return [".py"]
 
     def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze code for edge cases and potential bugs."""
@@ -54,22 +54,7 @@ class EdgeCasesChecker(BaseChecker):
 
     def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
         """Create a prompt for LLM analysis."""
-        file_ext = file_path.suffix.lower()
-
-        language_map = {
-            ".py": "Python",
-            ".js": "JavaScript",
-            ".ts": "TypeScript",
-            ".java": "Java",
-            ".cpp": "C++",
-            ".c": "C",
-            ".go": "Go",
-            ".rs": "Rust",
-        }
-
-        language = language_map.get(file_ext, "programming language")
-
-        return f"""Analyze this {language} code for potential edge cases, bugs, and issues. Focus on:
+        return f"""Analyze this Python code for potential edge cases, bugs, and issues. Focus on:
 
 1. Null/undefined checks that might be missing
 2. Boundary conditions not handled
@@ -81,10 +66,9 @@ class EdgeCasesChecker(BaseChecker):
 8. Logic errors or incorrect assumptions
 
 Code file: {file_path.name}
-Language: {language}
 
 Code:
-```{(language.lower())}
+```python
 {content}
 ```
 
