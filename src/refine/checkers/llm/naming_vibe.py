@@ -108,6 +108,14 @@ class NamingVibeChecker(BaseChecker):
         sampled_content = '\n'.join(sampled_lines)
         return sampled_content
 
+    def _add_line_numbers(self, content: str) -> str:
+        """Add line numbers to code for LLM analysis."""
+        lines = content.splitlines()
+        numbered_lines = []
+        for i, line in enumerate(lines, 1):
+            numbered_lines.append(f"{i:2d}: {line}")
+        return '\n'.join(numbered_lines)
+
     def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
         """Create a prompt for LLM analysis of naming and style."""
         return f"""Analyze this Python code for naming conventions, style, and potential AI-generation indicators. Look for:
@@ -122,10 +130,10 @@ class NamingVibeChecker(BaseChecker):
 
 Code file: {file_path.name}
 
-Code:
-```python
-{content}
-```
+Code with line numbers:
+{self._add_line_numbers(content)}
+
+CRITICAL: For each issue found, you MUST provide the EXACT line number where the problematic code appears. Look at the line numbers in the code above and reference them precisely.
 
 Provide your analysis in the following JSON format:
 {{
@@ -134,11 +142,11 @@ Provide your analysis in the following JSON format:
       "type": "naming|style|ai_pattern",
       "severity": "low|medium|high",
       "title": "Brief title",
-      "description": "Detailed description",
-      "line_number": 42,
+      "description": "Detailed description - include the exact variable/function name and what it should be",
+      "line_number": 42,  // MUST be the exact line number from the code above
       "confidence": 0.8,
       "current_name": "oldName",
-      "suggested_name": "newName",
+      "suggested_name": "newDescriptiveName",
       "category": "variable|function|class|method"
     }}
   ]
@@ -193,11 +201,19 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
             "ai_pattern": FindingType.AI_GENERATED,
         }
 
-        # Determine line number
+        # Determine line number with validation
         line_number = issue.get("line_number", 1)
         lines = content.splitlines()
         if line_number < 1 or line_number > len(lines):
-            line_number = 1
+            # Try to find the line containing the problematic name
+            current_name = issue.get("current_name", "")
+            if current_name:
+                for i, line in enumerate(lines, 1):
+                    if current_name in line:
+                        line_number = i
+                        break
+            else:
+                line_number = 1
 
         # Extract code snippet (1-2 lines around the issue)
         code_snippet = self._extract_code_snippet(lines, line_number)
