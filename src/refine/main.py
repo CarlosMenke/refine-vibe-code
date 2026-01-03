@@ -11,7 +11,7 @@ from .ui.printer import Printer
 app = typer.Typer(
     name="refine",
     help="CLI tool to identify AI-generated code and bad coding patterns",
-    add_completion=True,
+    add_completion=False,
     rich_markup_mode="rich",
     epilog="""
 Output Format Example:
@@ -20,9 +20,17 @@ Output Format Example:
 
    \t[dim]\tDetailed explanation for the issue[/dim]
 
-   \t[dim]\t  56 |  code_example = problem ^ 2[/dim]
+   \t[dim]\tcode_example = problem ^ 2[/dim]
 """
 )
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(ctx: typer.Context):
+    """Show help when no command is provided."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
 
 @app.command()
