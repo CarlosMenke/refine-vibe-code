@@ -22,7 +22,7 @@ class NamingVibeChecker(BaseChecker):
         )
 
     def _get_supported_extensions(self) -> List[str]:
-        return [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs"]
+        return [".py"]
 
     def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze code for naming and style issues."""
@@ -41,11 +41,17 @@ class NamingVibeChecker(BaseChecker):
             # Get LLM analysis
             response = provider.analyze_code(prompt)
 
+            # Debug output
+            if printer:
+                printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
+
             # Parse response and create findings
-            findings.extend(self._parse_llm_response(response, file_path, content))
+            findings.extend(self._parse_llm_response(response, file_path, content, printer))
 
         except Exception as e:
             # If LLM analysis fails, don't create findings
+            if printer:
+                printer.print_debug(f"LLM analysis failed for {file_path.name}: {e}")
             pass
 
         return findings
@@ -104,22 +110,7 @@ class NamingVibeChecker(BaseChecker):
 
     def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
         """Create a prompt for LLM analysis of naming and style."""
-        file_ext = file_path.suffix.lower()
-
-        language_map = {
-            ".py": "Python",
-            ".js": "JavaScript",
-            ".ts": "TypeScript",
-            ".java": "Java",
-            ".cpp": "C++",
-            ".c": "C",
-            ".go": "Go",
-            ".rs": "Rust",
-        }
-
-        language = language_map.get(file_ext, "programming language")
-
-        return f"""Analyze this {language} code for naming conventions, style, and potential AI-generation indicators. Look for:
+        return f"""Analyze this Python code for naming conventions, style, and potential AI-generation indicators. Look for:
 
 1. Inconsistent naming conventions (camelCase vs snake_case, etc.)
 2. Generic or robotic variable/function names
@@ -130,10 +121,9 @@ class NamingVibeChecker(BaseChecker):
 7. Redundant or verbose naming patterns
 
 Code file: {file_path.name}
-Language: {language}
 
 Code:
-```{(language.lower())}
+```python
 {content}
 ```
 
@@ -156,7 +146,7 @@ Provide your analysis in the following JSON format:
 
 Focus on actual issues. If no significant issues are found, return {{"issues": []}}."""
 
-    def _parse_llm_response(self, response: str, file_path: Path, content: str) -> List[Finding]:
+    def _parse_llm_response(self, response: str, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Parse LLM response and create findings."""
         findings = []
 
@@ -179,8 +169,11 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
                 if finding:
                     findings.append(finding)
 
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
             # If JSON parsing fails, try text parsing
+            if printer and printer.debug:
+                printer.print_debug(f"JSON parsing failed: {e}, trying text parsing")
+                printer.print_debug(f"Raw response: {response[:1000]}...")
             findings.extend(self._parse_text_response(response, file_path, content))
 
         return findings
