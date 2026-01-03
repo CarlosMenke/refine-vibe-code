@@ -1,6 +1,8 @@
 """Rich-based terminal output for Refine Vibe Code."""
 
 import json
+import re
+import textwrap
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -120,6 +122,31 @@ class Printer:
             self.console.print(f"[yellow]Warning:[/yellow] {message}")
         else:
             self.console.print(f"Warning: {message}")
+
+    def print_llm_warning_box(self) -> None:
+        """Print beautiful warning box for LLM provider configuration issues."""
+        warning_content = (
+            "[bold yellow]🤖 LLM-based checkers are enabled but no LLM provider is configured![/bold yellow]\n\n"
+            "[dim]FALLING BACK TO HARDCODED MOCK ANALYSIS[/dim]\n\n"
+            "This will only detect obvious patterns and may miss many issues.\n"
+            "For proper AI-generated code detection, configure an LLM provider:\n\n"
+            "• [bold cyan]OpenAI:[/bold cyan] Set [green]OPENAI_API_KEY[/green] environment variable\n"
+            "• [bold cyan]Google:[/bold cyan] Set [green]GOOGLE_API_KEY[/green] + configure provider in [magenta]refine.toml[/magenta]\n\n"
+            "Run [bold]'uv run refine init'[/bold] to generate a configuration file."
+        )
+
+        warning_panel = Panel(
+            warning_content,
+            title="[bold red]⚠️  CONFIGURATION WARNING[/bold red]",
+            title_align="center",
+            border_style="yellow",
+            padding=(1, 2),
+            expand=False
+        )
+
+        self.console.print("\n")
+        self.console.print(warning_panel)
+        self.console.print("\n")
 
     def print_error(self, message: str) -> None:
         """Print error message."""
@@ -334,48 +361,39 @@ class Printer:
 
         self.console.print(first_line)
 
-        # Print second line: description
+        # Print second line: description (with proper wrapping)
         if finding.description and finding.description != finding.title:
-            description_line = Text(f"{indent_prefix}  ", style="dim")  # Indent with two spaces
-            description_line.append(Text(finding.description, style=""))
-            self.console.print(description_line)
+            # Calculate available width for description (console width minus tab)
+            available_width = self.console.width - 8  # Account for tab width
+
+            # Wrap description text
+            wrapped_lines = textwrap.wrap(finding.description, width=available_width)
+
+            for line in wrapped_lines:
+                description_line = Text("\t", style="dim")
+                description_line.append(Text(line, style=""))
+                self.console.print(description_line)
 
         # Print code snippet on new line if available
         if finding.code_snippet:
-            code_line = Text(f"{indent_prefix}    ", style="dim")  # Additional indent for code
-            # Format code snippet with proper indentation and line breaks
             formatted_snippet = finding.code_snippet.strip()
 
-            # Get starting line number for the snippet
-            start_line = finding.location.line_start or 1
-
-            # If it's a multi-line snippet, indent each line and add line numbers
+            # If it's a multi-line snippet, print each line with styling
             if '\n' in formatted_snippet:
                 lines = formatted_snippet.split('\n')
-                # Limit to first few lines if too long
-                if len(lines) > 5:
-                    lines = lines[:4] + ["..."]
-                    numbered_lines = []
-                    for i, line in enumerate(lines[:-1]):  # Don't number the "..." line
-                        line_num = start_line + i
-                        numbered_lines.append(f"{line_num}| {line}")
-                    numbered_lines.append(f"{lines[-1]}")  # Don't number the "..." line
-                else:
-                    numbered_lines = []
-                    for i, line in enumerate(lines):
-                        line_num = start_line + i
-                        numbered_lines.append(f"{line_num}| {line}")
+                # Safety limit: max 6 lines to prevent overflow
+                if len(lines) > 6:
+                    lines = lines[:5] + ["..."]
 
-                formatted_snippet = '\n'
-                for line in numbered_lines:
-                    formatted_snippet += f"{indent_prefix}{line}\n"
-                code_line.append(Text(formatted_snippet))
+                for line in lines:
+                    code_line = Text("", style="dim")
+                    code_line.append(Text(line, style="bright_white"))
+                    self.console.print(code_line)
             else:
-                # Single line snippet with line number
-                if len(formatted_snippet) > 60:  # Truncate if too long
-                    formatted_snippet = formatted_snippet[:57] + "..."
-                code_line.append(Text(f"{start_line}| `{formatted_snippet}`"))
-            self.console.print(code_line)
+                # Single line snippet - show inline
+                code_line = Text("", style="dim")
+                code_line.append(Text(formatted_snippet, style="bright_white"))
+                self.console.print(code_line)
 
 
     def _print_success_message(self) -> None:
@@ -533,16 +551,17 @@ class Printer:
 
                     # Show description if available and different from title
                     if finding.description and finding.description != finding.title:
-                        self.console.print(f"\nExplanation: {finding.description}")
+                        # Wrap description with proper indentation (6 spaces to align)
+                        indent = "      "
+                        wrapped_desc = finding.description.replace('\n', f'\n{indent}')
+                        self.console.print(f"{indent}{wrapped_desc}")
 
                     # Show code snippet if available
                     if finding.code_snippet:
-                        start_line = finding.location.line_start or 1
-                        self.console.print(f"\nCode snippet:")
+                        # Don't add line numbers - they're already in the snippet
                         snippet_lines = finding.code_snippet.split('\n')
-                        for i, snippet_line in enumerate(snippet_lines):
-                            line_num = start_line + i
-                            self.console.print(f"\t{line_num}| {snippet_line}")
+                        for snippet_line in snippet_lines:
+                            self.console.print(f"\t{snippet_line}")
                         self.console.print()
 
     def _get_severity_color(self, severity: str) -> str:

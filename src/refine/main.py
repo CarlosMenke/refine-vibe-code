@@ -117,24 +117,10 @@ def scan(
             )
             raise typer.Exit(code=1)
         elif not classical_only and not llm_available and any("quality" in checker or "vibe" in checker for checker in config_data.checkers.enabled):
-            # Print big warning about falling back to mock analysis
-            typer.echo()
-            typer.echo("╔══════════════════════════════════════════════════════════════════════════════╗")
-            typer.echo("║                              ⚠️  WARNING ⚠️                               ║")
-            typer.echo("║                                                                            ║")
-            typer.echo("║  LLM-based checkers are enabled but no LLM provider is configured!       ║")
-            typer.echo("║                                                                            ║")
-            typer.echo("║  FALLING BACK TO HARDCODED MOCK ANALYSIS                                  ║")
-            typer.echo("║                                                                            ║")
-            typer.echo("║  This will only detect obvious patterns and may miss many issues.        ║")
-            typer.echo("║  For proper AI-generated code detection, configure an LLM provider:     ║")
-            typer.echo("║                                                                            ║")
-            typer.echo("║  1. OpenAI:    Set OPENAI_API_KEY environment variable                    ║")
-            typer.echo("║  2. Google:    Set GOOGLE_API_KEY + configure provider in refine.toml    ║")
-            typer.echo("║                                                                            ║")
-            typer.echo("║  Run 'uv run refine init' to generate a configuration file.              ║")
-            typer.echo("╚══════════════════════════════════════════════════════════════════════════════╝")
-            typer.echo()
+            # Print beautiful warning about falling back to mock analysis
+            # Initialize printer temporarily for this warning
+            temp_printer = Printer(output_format="rich", verbose=False, debug=False, root_path=path)
+            temp_printer.print_llm_warning_box()
 
         # Initialize printer
         printer = Printer(output_format=output_format, verbose=verbose, debug=debug, root_path=path)
