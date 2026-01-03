@@ -37,7 +37,7 @@ class Printer:
         "Code Quality": {
             "description": "Code style, naming conventions, and documentation quality",
             "checkers": [
-                "naming_vibe",
+                "vibe_naming",
                 "comment_quality",
                 "edge_cases"
             ],
