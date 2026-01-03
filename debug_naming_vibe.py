@@ -1,11 +1,17 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
 import json
 from pathlib import Path
-from src.refine.checkers.llm.comment_quality import CommentQualityChecker
+from refine.checkers.llm.naming_vibe import NamingVibeChecker
 from refine.providers import get_provider
 
 # Get the LLM response
-checker = CommentQualityChecker()
-file_path = Path('tests/bad_code_for_testing/test_bad_vibe_code_logic_stress.py')
+checker = NamingVibeChecker()
+file_path = Path('tests/bad_code_for_testing/test_naming_vibe_stress.py')
 with open(file_path, 'r') as f:
     content = f.read()
 
@@ -13,7 +19,7 @@ print('File length:', len(content))
 print('Lines:', len(content.splitlines()))
 
 # Create the prompt and get response directly
-prompt = checker._create_analysis_prompt(file_path, content)
+prompt = checker._create_analysis_prompt(file_path, content[:2000])  # Sample first part
 provider = get_provider()
 response = provider.analyze_code(prompt)
 
@@ -48,4 +54,3 @@ except Exception as e:
     print('JSON parsing failed:', e)
     import traceback
     traceback.print_exc()
-
