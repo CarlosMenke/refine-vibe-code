@@ -11,7 +11,7 @@ from .ui.printer import Printer
 app = typer.Typer(
     name="refine",
     help="CLI tool to identify AI-generated code and bad coding patterns",
-    add_completion=True,
+    add_completion=False,
 )
 
 
@@ -129,8 +129,6 @@ def scan(
         # Initialize printer
         printer = Printer(output_format=output_format, verbose=verbose, debug=debug, root_path=path)
 
-        # Print header
-        printer.print_header("Refine Vibe Code Scanner")
 
         # Initialize and run scan engine
         engine = ScanEngine(config=config_data, printer=printer)
