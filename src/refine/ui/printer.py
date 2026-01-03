@@ -14,6 +14,9 @@ from rich.text import Text
 from rich.columns import Columns
 from rich.layout import Layout
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.syntax import Syntax
+from pygments.lexers import get_lexer_by_name, guess_lexer
+from pygments.util import ClassNotFound
 
 from ..core.results import ScanResults, Finding, Severity
 
@@ -388,22 +391,14 @@ class Printer:
         if finding.code_snippet:
             formatted_snippet = finding.code_snippet.strip()
 
-            # If it's a multi-line snippet, print each line with styling
-            if '\n' in formatted_snippet:
+            # Safety limit: max 15 lines to prevent overflow
+            lines = formatted_snippet.split('\n')
+            if len(lines) > 15:
+                formatted_snippet = '\n'.join(lines[:14]) + '\n...'
                 lines = formatted_snippet.split('\n')
-                # Safety limit: max 6 lines to prevent overflow
-                if len(lines) > 6:
-                    lines = lines[:5] + ["..."]
 
-                for line in lines:
-                    code_line = Text("", style="dim")
-                    code_line.append(Text(line, style="bright_white"))
-                    self.console.print(code_line)
-            else:
-                # Single line snippet - show inline
-                code_line = Text("", style="dim")
-                code_line.append(Text(formatted_snippet, style="bright_white"))
-                self.console.print(code_line)
+            # Use syntax highlighting
+            self._print_code_snippet(formatted_snippet, finding.location.file)
 
 
     def _print_success_message(self) -> None:
@@ -568,10 +563,20 @@ class Printer:
 
                     # Show code snippet if available
                     if finding.code_snippet:
-                        # Don't add line numbers - they're already in the snippet
                         snippet_lines = finding.code_snippet.split('\n')
-                        for snippet_line in snippet_lines:
-                            self.console.print(f"\t{snippet_line}")
+                        # Safety limit for plain text output
+                        if len(snippet_lines) > 15:
+                            snippet_lines = snippet_lines[:14] + ["..."]
+
+                        # Add line numbers for plain text output
+                        start_line = finding.location.line_start if finding.location.line_start else 1
+                        max_line_width = len(str(start_line + len(snippet_lines) - 1))
+                        for i, line in enumerate(snippet_lines):
+                            line_num = start_line + i
+                            if line == "...":
+                                self.console.print(f"\t{line}")
+                            else:
+                                self.console.print(f"\t{line_num:>{max_line_width}}: {line}")
                         self.console.print()
 
     def _get_severity_color(self, severity: str) -> str:
@@ -619,6 +624,78 @@ class Printer:
             "style_issue": "bold cyan",    # Bold cyan for style issues
         }
         return color_map.get(finding_type.lower(), "bold white")
+
+    def _print_code_snippet(self, code: str, file_path: Optional[Path] = None) -> None:
+        """Print code snippet with syntax highlighting and line numbers."""
+        if not code.strip():
+            return
+
+        # Determine the lexer based on file extension
+        lexer = None
+        if file_path:
+            file_extension = file_path.suffix.lower()
+            extension_to_lexer = {
+                '.py': 'python',
+                '.js': 'javascript',
+                '.ts': 'typescript',
+                '.java': 'java',
+                '.cpp': 'cpp',
+                '.c': 'c',
+                '.cs': 'csharp',
+                '.php': 'php',
+                '.rb': 'ruby',
+                '.go': 'go',
+                '.rs': 'rust',
+                '.sh': 'bash',
+                '.sql': 'sql',
+                '.html': 'html',
+                '.css': 'css',
+                '.json': 'json',
+                '.xml': 'xml',
+                '.yaml': 'yaml',
+                '.yml': 'yaml',
+                '.toml': 'toml',
+                '.md': 'markdown',
+            }
+
+            lexer_name = extension_to_lexer.get(file_extension)
+            if lexer_name:
+                try:
+                    lexer = get_lexer_by_name(lexer_name)
+                except ClassNotFound:
+                    pass
+
+        # If we couldn't determine lexer from extension, try to guess
+        if not lexer:
+            try:
+                lexer = guess_lexer(code)
+            except ClassNotFound:
+                # Fallback to plain text
+                pass
+
+        # Create syntax object without line numbers
+        if lexer:
+            syntax = Syntax(
+                code,
+                lexer,
+                theme="monokai",  # Dark theme that works well in terminals
+                line_numbers=False,
+                word_wrap=False,
+                code_width=self.console.width - 8,  # Leave some margin
+            )
+        else:
+            # Fallback for unknown languages - plain text without line numbers
+            syntax = Syntax(
+                code,
+                "text",
+                theme="monokai",
+                line_numbers=False,
+                word_wrap=False,
+                code_width=self.console.width - 8,
+            )
+
+        # Print the syntax-highlighted code
+        self.console.print(syntax)
 
     def _get_relative_path(self, file_path: Path) -> str:
         """Get relative path from root directory."""
