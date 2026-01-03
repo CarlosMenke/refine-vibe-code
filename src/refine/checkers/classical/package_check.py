@@ -168,32 +168,31 @@ class PackageCheckChecker(BaseChecker):
         """Check for package structure issues."""
         findings = []
 
-        # Check if file is in a package but missing __init__.py
-        parent_dirs = list(file_path.parents)
-        for parent in parent_dirs:
-            if parent.name.startswith('.'):
-                continue
+        # Check if the immediate parent directory is a package (has __init__.py)
+        # Only check the immediate parent, not all ancestors
+        parent_dir = file_path.parent
+        if parent_dir.name.startswith('.'):
+            return findings
 
-            init_file = parent / "__init__.py"
-            if not init_file.exists():
-                # Look for other Python files in the same directory
-                py_files = list(parent.glob("*.py"))
-                if len(py_files) > 1:  # More than just this file
-                    findings.append(Finding(
-                        id=f"missing_init_{parent.name}_{file_path.name}",
-                        title="Missing __init__.py",
-                        description=f"Directory {parent.name} contains Python files but no __init__.py",
-                        severity=Severity.LOW,
-                        type=FindingType.BAD_PRACTICE,
-                        location=Location(file=file_path, line_start=1),
-                        checker_name=self.name,
-                        evidence=[Evidence(
-                            type="filesystem",
-                            description=f"Found {len(py_files)} Python files in directory without __init__.py",
-                            confidence=0.8
-                        )]
-                    ))
-                    break
+        init_file = parent_dir / "__init__.py"
+        if not init_file.exists():
+            # Look for other Python files in the same directory
+            py_files = list(parent_dir.glob("*.py"))
+            if len(py_files) > 1:  # More than just this file and potentially __init__.py
+                findings.append(Finding(
+                    id=f"missing_init_{parent_dir.name}_{file_path.name}",
+                    title="Missing __init__.py",
+                    description=f"Directory {parent_dir.name} contains Python files but no __init__.py",
+                    severity=Severity.LOW,
+                    type=FindingType.BAD_PRACTICE,
+                    location=Location(file=file_path, line_start=1),
+                    checker_name=self.name,
+                    evidence=[Evidence(
+                        type="filesystem",
+                        description=f"Found {len(py_files)} Python files in directory {parent_dir.name} without __init__.py",
+                        confidence=0.8
+                    )]
+                ))
 
         return findings
 
