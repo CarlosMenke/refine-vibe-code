@@ -345,8 +345,8 @@ class Printer:
         checker_text = Text(f"[{finding.checker_name}]", style="magenta")
         confidence_text = Text(confidence_str, style="green") if confidence_str else Text("", style="")
 
-        # Relative path without line number
-        relative_path = self._get_relative_path(finding.location.file)
+        # Relative path with line number
+        relative_path = f"{self._get_relative_path(finding.location.file)}:{finding.location.line_start}"
         location_text = Text(relative_path, style="cyan")
 
         # Print first line: main finding info (severity not indented)
@@ -541,9 +541,9 @@ class Printer:
                     checker_bracket = f"[{finding.checker_name}]"
                     title_clean = finding.title
                     confidence_clean = confidence_str
-                    # Relative path without line number at the end
+                    # Relative path with line number at the end
                     relative_path = self._get_relative_path(finding.location.file)
-                    full_path_clean = relative_path
+                    full_path_clean = f"{relative_path}:{finding.location.line_start}"
 
                     # Combine all parts with spaces
                     line_parts = [severity_bracket, checker_bracket, title_clean]
