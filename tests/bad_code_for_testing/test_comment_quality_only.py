@@ -4,8 +4,14 @@ Test just the comment_quality checker in isolation to measure timing.
 """
 
 import time
+import sys
+import os
 from pathlib import Path
-from src.refine.checkers.llm.comment_quality import CommentQualityChecker
+
+# Add src directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from refine.checkers.llm.comment_quality import CommentQualityChecker
 
 def main():
     # Use the same test file
