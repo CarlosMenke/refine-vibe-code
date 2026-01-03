@@ -4,24 +4,39 @@ import typer
 from pathlib import Path
 from typing import Optional
 
+from rich.syntax import Syntax
+from rich.console import Console
+from pygments.lexers import get_lexer_by_name
+
 from .config.loader import load_config
 from .core.engine import ScanEngine
 from .ui.printer import Printer
+
+
+def _print_syntax_highlighted_code_example(console: "Console") -> None:
+    """Print syntax-highlighted code example for help text using the same method as printer.py."""
+    code = "code_example = problem ^ 2"
+    try:
+        lexer = get_lexer_by_name("python")
+        syntax = Syntax(
+            code,
+            lexer,
+            theme="monokai",
+            line_numbers=False,
+            word_wrap=False,
+            code_width=console.width - 8,  # Leave some margin like in printer.py
+        )
+        console.print(syntax)
+    except Exception:
+        # Fallback to plain text if syntax highlighting fails
+        console.print(code)
+
 
 app = typer.Typer(
     name="refine",
     help="CLI tool to identify AI-generated code and bad coding patterns",
     add_completion=False,
     rich_markup_mode="rich",
-    epilog="""
-Output Format Example:
-
-  [[bold red]HIGH[/bold red]] [[magenta]vibe_naming[/magenta]] [bold cyan]Poor variable naming convention[/bold cyan] [green](85.7%)[/green] [cyan]file_name.py:56[/cyan]
-
-   \t[dim]\tDetailed explanation for the issue[/dim]
-
-   \t[dim]\tcode_example = problem ^ 2[/dim]
-"""
 )
 
 
@@ -29,7 +44,38 @@ Output Format Example:
 def main_callback(ctx: typer.Context):
     """Show help when no command is provided."""
     if ctx.invoked_subcommand is None:
+        # Print the standard help
         typer.echo(ctx.get_help())
+
+        # Print the output format example with syntax highlighting
+        console = Console(width=120)
+
+        console.print("\n[dim]Output Format Example:[/dim]")
+
+        # Create styled text for the example output line
+        from rich.text import Text
+        example_line = Text()
+        example_line.append("[", style="bold red")
+        example_line.append("PRIORITY", style="bold red")
+        example_line.append("] ", style="bold red")
+        example_line.append("[", style="magenta")
+        example_line.append("vibe_naming", style="magenta")
+        example_line.append("] ", style="magenta")
+        example_line.append("Poor naming convention", style="bold cyan")
+        example_line.append(" ", style="")
+        example_line.append("(85.7%)", style="green")
+        example_line.append(" ", style="")
+        example_line.append("file_name.py:56", style="cyan")
+        console.print("  ", end="")
+        console.print(example_line, overflow="ellipsis")
+
+        console.print("  [dim]Variable 'code_example' doesn't follow Python naming conventions.[/dim]")
+        console.print("    56 | ", end="")
+
+        # Print the syntax-highlighted code
+        _print_syntax_highlighted_code_example(console)
+
+        console.print()
         raise typer.Exit()
 
 
