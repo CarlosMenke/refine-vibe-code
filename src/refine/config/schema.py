@@ -72,7 +72,7 @@ class CheckersConfig(BaseModel):
             "boilerplate",
             "dependency_validation",
             "edge_cases",
-            "naming_vibe",
+            "vibe_naming",
             "comment_quality",
         ],
         description="List of enabled checkers",
