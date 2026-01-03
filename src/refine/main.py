@@ -11,7 +11,17 @@ from .ui.printer import Printer
 app = typer.Typer(
     name="refine",
     help="CLI tool to identify AI-generated code and bad coding patterns",
-    add_completion=False,
+    add_completion=True,
+    rich_markup_mode="rich",
+    epilog="""
+Output Format Example:
+
+  [[bold red]HIGH[/bold red]] [[magenta]naming_vibe[/magenta]] [bold cyan]Poor variable naming convention[/bold cyan] [green](85.7%)[/green] [cyan]file_name.py:56[/cyan]
+
+      [dim]Detailed explanation for the issue[/dim]
+
+               [dim]56 |  code_example = problem ^ 2[/dim]
+"""
 )
 
 
@@ -128,7 +138,6 @@ def scan(
 
         # Initialize printer
         printer = Printer(output_format=output_format, verbose=verbose, debug=debug, root_path=path)
-
 
         # Initialize and run scan engine
         engine = ScanEngine(config=config_data, printer=printer)

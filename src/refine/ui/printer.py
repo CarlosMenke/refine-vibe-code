@@ -19,6 +19,48 @@ from ..core.results import ScanResults, Finding, Severity
 class Printer:
     """Handles terminal output formatting with Rich."""
 
+    # Category definitions for grouping findings
+    CATEGORIES = {
+        "Security Issues": {
+            "description": "Security vulnerabilities, hardcoded secrets, and unsafe practices",
+            "checkers": [
+                "hardcoded_secrets",
+                "sql_injection",
+                "dangerous_ai_logic",
+                "contextual_sqli_audit"
+            ],
+            "icon": "🔒",
+            "color": "red"
+        },
+        "Code Quality": {
+            "description": "Code style, naming conventions, and documentation quality",
+            "checkers": [
+                "naming_vibe",
+                "comment_quality",
+                "edge_cases"
+            ],
+            "icon": "🎨",
+            "color": "blue"
+        },
+        "Package & Dependencies": {
+            "description": "Package management, imports, and dependency issues",
+            "checkers": [
+                "package_check",
+                "dependency_validation"
+            ],
+            "icon": "📦",
+            "color": "green"
+        },
+        "Best Practices": {
+            "description": "Code patterns, boilerplate detection, and general best practices",
+            "checkers": [
+                "boilerplate"
+            ],
+            "icon": "✨",
+            "color": "yellow"
+        }
+    }
+
     def __init__(self, output_format: str = "rich", verbose: bool = False, color: bool = True, debug: bool = False, root_path: Optional[Path] = None):
         self.output_format = output_format
         self.verbose = verbose
@@ -29,6 +71,23 @@ class Printer:
         terminal_width = Console().size.width if hasattr(Console(), 'size') else 120
         width = min(max(terminal_width, 80), 140)  # Between 80 and 140 chars
         self.console = Console(force_terminal=color, width=width)
+
+    def _get_finding_category(self, checker_name: str) -> str:
+        """Get the category for a given checker name."""
+        for category_name, category_info in self.CATEGORIES.items():
+            if checker_name in category_info["checkers"]:
+                return category_name
+        return "Other Issues"
+
+    def _group_findings_by_category(self, findings: List[Finding]) -> Dict[str, List[Finding]]:
+        """Group findings by their categories."""
+        grouped = {}
+        for finding in findings:
+            category = self._get_finding_category(finding.checker_name)
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(finding)
+        return grouped
 
     def print_header(self, title: str) -> None:
         """Print application header."""
@@ -155,51 +214,94 @@ class Printer:
         self.console.print(table)
 
     def _print_findings_cards(self, findings: List[Finding]) -> None:
-        """Print findings as beautiful cards grouped by file."""
-        # Group findings by file
-        grouped_findings = {}
+        """Print findings as beautiful cards grouped by category."""
+        # Group findings by category
+        grouped_findings = self._group_findings_by_category(findings)
 
-        for finding in findings:
-            file_path = str(finding.location.file)
-            if file_path not in grouped_findings:
-                grouped_findings[file_path] = []
-            grouped_findings[file_path].append(finding)
+        # Define category priority order (Security first, then Code Quality, etc.)
+        category_priority = {
+            "Security Issues": 0,
+            "Code Quality": 1,
+            "Package & Dependencies": 2,
+            "Best Practices": 3,
+            "Other Issues": 4
+        }
 
-        # Sort groups by file path (alphabetically)
-        sorted_groups = sorted(grouped_findings.keys())
+        # Sort categories by priority
+        sorted_categories = sorted(
+            grouped_findings.keys(),
+            key=lambda cat: category_priority.get(cat, 5)
+        )
 
         self.console.print("\n")  # Add some space
 
-        for file_path in sorted_groups:
-            findings_in_group = grouped_findings[file_path]
-            # Sort findings within each file by severity (decreasing) then confidence (decreasing)
+        for category_name in sorted_categories:
+            findings_in_category = grouped_findings[category_name]
+
+            # Sort findings within each category by severity (decreasing) then confidence (decreasing)
             severity_order = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
             sorted_findings = sorted(
-                findings_in_group,
+                findings_in_category,
                 key=lambda f: (severity_order.get(f.severity, 5), -f.confidence_score())
             )
-            self._print_file_group(file_path, sorted_findings)
 
-    def _print_file_group(self, file_path: str, findings: List[Finding]) -> None:
-        """Print all findings for a specific file."""
+            self._print_category_group(category_name, sorted_findings)
+
+    def _print_category_group(self, category_name: str, findings: List[Finding]) -> None:
+        """Print all findings for a specific category."""
+        # Get category info
+        category_info = self.CATEGORIES.get(category_name, {
+            "icon": "⚠️",
+            "color": "yellow",
+            "description": "Miscellaneous issues"
+        })
+
+        category_icon = category_info["icon"]
+        category_color = category_info["color"]
+        category_description = category_info["description"]
+
+        # Category header with icon and description
+        header_title = f"{category_icon} {category_name} ({len(findings)} findings)"
+        self.console.print(f"\n[bold {category_color}]{header_title}[/bold {category_color}]")
+        self.console.print(f"[dim {category_color}]{'─' * len(header_title)}[/dim {category_color}]")
+        self.console.print(f"[dim {category_color}]{category_description}[/dim {category_color}]")
+
+        # Group findings by file within this category
+        findings_by_file = {}
+        for finding in findings:
+            file_path = str(finding.location.file)
+            if file_path not in findings_by_file:
+                findings_by_file[file_path] = []
+            findings_by_file[file_path].append(finding)
+
+        # Sort files alphabetically
+        sorted_files = sorted(findings_by_file.keys())
+
+        # Print each file's findings within this category
+        for file_path in sorted_files:
+            file_findings = findings_by_file[file_path]
+            self._print_file_group_within_category(file_path, file_findings)
+
+    def _print_file_group_within_category(self, file_path: str, findings: List[Finding]) -> None:
+        """Print all findings for a specific file within a category."""
         # Get relative path for display
         relative_path = self._get_relative_path(Path(file_path))
 
         # Use file icon and consistent color for file headers
         file_icon = "📄"
-        file_color = "bold blue"
+        file_color = "bold cyan"
 
-        # Group header
-        group_title = f"{file_icon} {relative_path} ({len(findings)} findings)"
-        self.console.print(f"\n[{file_color}]{group_title}[/{file_color}]")
-        self.console.print(f"[dim blue]{'─' * len(group_title)}[/dim blue]")
+        # File header (indented slightly to show it's within a category)
+        file_title = f"  {file_icon} {relative_path} ({len(findings)} findings)"
+        self.console.print(f"\n[{file_color}]{file_title}[/{file_color}]")
 
-        # Print each finding as a card
+        # Print each finding as a card (indented)
         for i, finding in enumerate(findings, 1):
-            self._print_finding_card(finding, i)
+            self._print_finding_card(finding, i, indent=True)
 
-    def _print_finding_card(self, finding: Finding, index: int) -> None:
+    def _print_finding_card(self, finding: Finding, index: int, indent: bool = False) -> None:
         """Print a single finding as a two-line compact message."""
+        indent_prefix = "    " if indent else ""
         severity_color = self._get_severity_color(finding.severity.value)
         title_color = self._get_title_color(finding.type.value)
 
@@ -209,21 +311,21 @@ class Printer:
 
         # Create colored text objects for first line
         severity_text = Text(f"[{finding.severity.value.upper()}]", style=severity_color)
-        title_text = Text(f"[{finding.title}]", style=title_color)
-        checker_text = Text(finding.checker_name, style="magenta")
+        title_text = Text(finding.title, style=title_color)
+        checker_text = Text(f"[{finding.checker_name}]", style="magenta")
         confidence_text = Text(confidence_str, style="green") if confidence_str else Text("", style="")
 
         # Relative path with line number
         relative_path = self._get_relative_path(finding.location.file)
         location_text = Text(f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path, style="cyan")
 
-        # Print first line: main finding info
+        # Print first line: main finding info (severity not indented)
         first_line = Text()
         first_line.append(severity_text)
         first_line.append(" ")
-        first_line.append(title_text)
-        first_line.append(" ")
         first_line.append(checker_text)
+        first_line.append(" ")
+        first_line.append(title_text)
         if confidence_str:
             first_line.append(" ")
             first_line.append(confidence_text)
@@ -232,25 +334,47 @@ class Printer:
 
         self.console.print(first_line)
 
-        # Print second line: description and code snippet
-        if finding.description or finding.code_snippet:
-            second_line = Text("  ", style="dim")  # Indent with two spaces
+        # Print second line: description
+        if finding.description and finding.description != finding.title:
+            description_line = Text(f"{indent_prefix}  ", style="dim")  # Indent with two spaces
+            description_line.append(Text(finding.description, style=""))
+            self.console.print(description_line)
 
-            # Add description if different from title
-            if finding.description and finding.description != finding.title:
-                second_line.append(Text(finding.description, style="bright_white"))
+        # Print code snippet on new line if available
+        if finding.code_snippet:
+            code_line = Text(f"{indent_prefix}    ", style="dim")  # Additional indent for code
+            # Format code snippet with proper indentation and line breaks
+            formatted_snippet = finding.code_snippet.strip()
 
-            # Add code snippet if available
-            if finding.code_snippet:
-                if finding.description and finding.description != finding.title:
-                    second_line.append(Text(" ", style="dim"))
-                # Clean up the code snippet for inline display (remove extra whitespace)
-                clean_snippet = finding.code_snippet.strip().replace('\n', ' ').replace('  ', ' ')
-                if len(clean_snippet) > 60:  # Truncate if too long
-                    clean_snippet = clean_snippet[:57] + "..."
-                second_line.append(Text(f"`{clean_snippet}`", style="dim blue"))
+            # Get starting line number for the snippet
+            start_line = finding.location.line_start or 1
 
-            self.console.print(second_line)
+            # If it's a multi-line snippet, indent each line and add line numbers
+            if '\n' in formatted_snippet:
+                lines = formatted_snippet.split('\n')
+                # Limit to first few lines if too long
+                if len(lines) > 5:
+                    lines = lines[:4] + ["..."]
+                    numbered_lines = []
+                    for i, line in enumerate(lines[:-1]):  # Don't number the "..." line
+                        line_num = start_line + i
+                        numbered_lines.append(f"\t{line_num}| {line}")
+                    numbered_lines.append(f"\t{lines[-1]}")  # Don't number the "..." line
+                else:
+                    numbered_lines = []
+                    for i, line in enumerate(lines):
+                        line_num = start_line + i
+                        numbered_lines.append(f"\t{line_num}| {line}")
+
+                formatted_snippet = '\n'.join(f"{indent_prefix}{line}" for line in numbered_lines)
+                code_line.append(Text(formatted_snippet, style="bright_white"))
+            else:
+                # Single line snippet with line number
+                if len(formatted_snippet) > 60:  # Truncate if too long
+                    formatted_snippet = formatted_snippet[:57] + "..."
+                code_line.append(Text(f"\t{start_line}| `{formatted_snippet}`", style="bright_white"))
+            self.console.print(code_line)
+
 
     def _print_success_message(self) -> None:
         """Print a success message when no issues are found."""
@@ -344,45 +468,80 @@ class Printer:
             self.console.print("\nFINDINGS")
             self.console.print("=" * 50)
 
-            severity_order = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
-            sorted_findings = sorted(results.findings, key=lambda f: severity_order.get(f.severity, 5))
+            # Group findings by category
+            grouped_findings = self._group_findings_by_category(results.findings)
+
+            # Define category priority order
+            category_priority = {
+                "Security Issues": 0,
+                "Code Quality": 1,
+                "Package & Dependencies": 2,
+                "Best Practices": 3,
+                "Other Issues": 4
+            }
+
+            # Sort categories by priority
+            sorted_categories = sorted(
+                grouped_findings.keys(),
+                key=lambda cat: category_priority.get(cat, 5)
+            )
 
             # Print format description (plain text)
-            self.console.print("Format: [SEVERITY] [TITLE] CHECKER CONFIDENCE FULL_PATH:LINE")
+            self.console.print("Format: [SEVERITY] [CHECKER] TITLE CONFIDENCE FULL_PATH:LINE")
             self.console.print()
 
-            for i, finding in enumerate(sorted_findings, 1):
-                confidence = finding.confidence_score()
-                confidence_str = f"{confidence:.1%}" if confidence > 0 else ""
+            for category_name in sorted_categories:
+                findings_in_category = grouped_findings[category_name]
 
-                # Format the output: [SEVERITY] [TITLE] CHECKER CONFIDENCE FULL_PATH:LINE
-                severity_bracket = f"[{finding.severity.value.upper()}]"
-                title_bracket = f"[{finding.title}]"
-                checker_clean = finding.checker_name
-                confidence_clean = confidence_str
-                # Relative path with line number at the end
-                relative_path = self._get_relative_path(finding.location.file)
-                full_path_clean = f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path
+                # Print category header
+                category_info = self.CATEGORIES.get(category_name, {"icon": "⚠️", "description": "Miscellaneous issues"})
+                self.console.print(f"\n{category_info['icon']} {category_name.upper()}")
+                self.console.print(f"{'─' * (len(category_name) + 2)}")
+                self.console.print(f"{category_info['description']}")
+                self.console.print()
 
-                # Combine all parts with spaces
-                line_parts = [severity_bracket, title_bracket, checker_clean]
-                if confidence_clean:
-                    line_parts.append(confidence_clean)
-                line_parts.append(full_path_clean)
-                line = " ".join(line_parts)
+                # Sort findings within category by severity then confidence
+                severity_order = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
+                sorted_findings = sorted(
+                    findings_in_category,
+                    key=lambda f: (severity_order.get(f.severity, 5), -f.confidence_score())
+                )
 
-                self.console.print(line)
+                for finding in sorted_findings:
+                    confidence = finding.confidence_score()
+                    confidence_str = f"{confidence:.1%}" if confidence > 0 else ""
 
-                # Show description if available and different from title
-                if finding.description and finding.description != finding.title:
-                    self.console.print(f"\nExplanation: {finding.description}")
+                    # Format the output: [SEVERITY] [CHECKER] TITLE CONFIDENCE FULL_PATH:LINE
+                    severity_bracket = f"[{finding.severity.value.upper()}]"
+                    checker_bracket = f"[{finding.checker_name}]"
+                    title_clean = finding.title
+                    confidence_clean = confidence_str
+                    # Relative path with line number at the end
+                    relative_path = self._get_relative_path(finding.location.file)
+                    full_path_clean = f"{relative_path}:{finding.location.line_start}" if finding.location.line_start else relative_path
 
-                # Show code snippet if available
-                if finding.code_snippet:
-                    self.console.print(f"\nCode snippet:")
-                    for snippet_line in finding.code_snippet.split('\n'):
-                        self.console.print(f"  {snippet_line}")
-                    self.console.print()
+                    # Combine all parts with spaces
+                    line_parts = [severity_bracket, checker_bracket, title_clean]
+                    if confidence_clean:
+                        line_parts.append(confidence_clean)
+                    line_parts.append(full_path_clean)
+                    line = " ".join(line_parts)
+
+                    self.console.print(line)
+
+                    # Show description if available and different from title
+                    if finding.description and finding.description != finding.title:
+                        self.console.print(f"\nExplanation: {finding.description}")
+
+                    # Show code snippet if available
+                    if finding.code_snippet:
+                        start_line = finding.location.line_start or 1
+                        self.console.print(f"\nCode snippet:")
+                        snippet_lines = finding.code_snippet.split('\n')
+                        for i, snippet_line in enumerate(snippet_lines):
+                            line_num = start_line + i
+                            self.console.print(f"\t{line_num}| {snippet_line}")
+                        self.console.print()
 
     def _get_severity_color(self, severity: str) -> str:
         """Get Rich color for severity level."""
