@@ -18,9 +18,9 @@ Output Format Example:
 
   [[bold red]HIGH[/bold red]] [[magenta]naming_vibe[/magenta]] [bold cyan]Poor variable naming convention[/bold cyan] [green](85.7%)[/green] [cyan]file_name.py:56[/cyan]
 
-      [dim]Detailed explanation for the issue[/dim]
+   \t[dim]\tDetailed explanation for the issue[/dim]
 
-               [dim]56 |  code_example = problem ^ 2[/dim]
+   \t[dim]\t  56 |  code_example = problem ^ 2[/dim]
 """
 )
 
