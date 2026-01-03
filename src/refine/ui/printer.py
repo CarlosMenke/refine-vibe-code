@@ -19,10 +19,11 @@ from ..core.results import ScanResults, Finding, Severity
 class Printer:
     """Handles terminal output formatting with Rich."""
 
-    def __init__(self, output_format: str = "rich", verbose: bool = False, color: bool = True, root_path: Optional[Path] = None):
+    def __init__(self, output_format: str = "rich", verbose: bool = False, color: bool = True, debug: bool = False, root_path: Optional[Path] = None):
         self.output_format = output_format
         self.verbose = verbose
         self.color = color
+        self.debug = debug
         self.root_path = root_path or Path.cwd()
         # Use responsive width with a reasonable minimum and maximum
         terminal_width = Console().size.width if hasattr(Console(), 'size') else 120
@@ -67,6 +68,14 @@ class Printer:
             self.console.print(f"[red]Error:[/red] {message}")
         else:
             self.console.print(f"Error: {message}")
+
+    def print_debug(self, message: str) -> None:
+        """Print debug message."""
+        if self.debug:
+            if self.output_format == "rich":
+                self.console.print(f"[dim cyan]Debug:[/dim cyan] {message}")
+            else:
+                self.console.print(f"Debug: {message}")
 
     def print_results(self, results: ScanResults, fix: bool = False) -> None:
         """Print scan results."""
@@ -141,13 +150,9 @@ class Printer:
 
         table.add_row(*row_data)
 
-        summary_panel = Panel(
-            table,
-            title="[bold blue]🚀 Scan Summary[/bold blue]",
-            border_style="blue",
-            title_align="left"
-        )
-        self.console.print(summary_panel)
+        # Print table header
+        self.console.print("[bold blue]🚀 Scan Summary[/bold blue]")
+        self.console.print(table)
 
     def _print_findings_cards(self, findings: List[Finding]) -> None:
         """Print findings as beautiful cards grouped by file."""
@@ -225,9 +230,10 @@ class Printer:
         if finding.description or finding.code_snippet:
             second_line = Text("  ", style="dim")  # Indent with two spaces
 
-            # Add description if different from title
+            # Add description if different from title - use severity-appropriate color
             if finding.description and finding.description != finding.title:
-                second_line.append(Text(finding.description, style="dim yellow"))
+                desc_color = self._get_description_color(finding.severity.value)
+                second_line.append(Text(finding.description, style=desc_color))
 
             # Add code snippet if available
             if finding.code_snippet:
@@ -384,6 +390,17 @@ class Printer:
         }
         return color_map.get(severity.lower(), "white")
 
+    def _get_description_color(self, severity: str) -> str:
+        """Get Rich color for finding description based on severity."""
+        color_map = {
+            "critical": "red",
+            "high": "red",
+            "medium": "yellow",
+            "low": "yellow",  # Changed from dim yellow to regular yellow for better readability
+            "info": "blue",
+        }
+        return color_map.get(severity.lower(), "white")
+
     def _get_severity_icon(self, severity: str) -> str:
         """Get icon for severity level."""
         icon_map = {
@@ -410,14 +427,14 @@ class Printer:
     def _get_title_color(self, finding_type: str) -> str:
         """Get color for finding type title."""
         color_map = {
-            "ai_generated": "purple",  # Purple/Magenta for AI-generated smells
-            "bad_practice": "yellow",  # Yellow for standard bad patterns
-            "code_smell": "red",       # Red for code smells
-            "security_issue": "bold red",
-            "performance_issue": "orange1",
-            "style_issue": "cyan",
+            "ai_generated": "bold cyan",    # Bold cyan for AI-generated smells
+            "bad_practice": "bold cyan",   # Bold cyan for standard bad patterns
+            "code_smell": "bold cyan",     # Bold cyan for code smells
+            "security_issue": "bold red",  # Keep security issues red
+            "performance_issue": "bold cyan", # Bold cyan for performance issues
+            "style_issue": "bold cyan",    # Bold cyan for style issues
         }
-        return color_map.get(finding_type.lower(), "white")
+        return color_map.get(finding_type.lower(), "bold white")
 
     def _get_relative_path(self, file_path: Path) -> str:
         """Get relative path from root directory."""
