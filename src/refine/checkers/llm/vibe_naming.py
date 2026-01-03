@@ -316,7 +316,7 @@ Return {{"issues": []}} if no significant issues found."""
 
         # Determine if code snippet should be shown (LLM decides)
         show_snippet = issue.get("show_snippet", True)  # Default to showing for backwards compat
-        snippet_lines = issue.get("snippet_lines", 1)
+        snippet_lines = min(issue.get("snippet_lines", 1), 3)  # Limit to max 3 lines as per prompt
 
         if show_snippet:
             code_snippet = self._extract_code_snippet(content, line_number, context_lines=snippet_lines)
