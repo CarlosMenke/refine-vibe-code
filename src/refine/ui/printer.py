@@ -358,21 +358,23 @@ class Printer:
                     numbered_lines = []
                     for i, line in enumerate(lines[:-1]):  # Don't number the "..." line
                         line_num = start_line + i
-                        numbered_lines.append(f"\t{line_num}| {line}")
-                    numbered_lines.append(f"\t{lines[-1]}")  # Don't number the "..." line
+                        numbered_lines.append(f"{line_num}| {line}")
+                    numbered_lines.append(f"{lines[-1]}")  # Don't number the "..." line
                 else:
                     numbered_lines = []
                     for i, line in enumerate(lines):
                         line_num = start_line + i
-                        numbered_lines.append(f"\t{line_num}| {line}")
+                        numbered_lines.append(f"{line_num}| {line}")
 
-                formatted_snippet = '\n'.join(f"{indent_prefix}{line}" for line in numbered_lines)
-                code_line.append(Text(formatted_snippet, style="bright_white"))
+                formatted_snippet = '\n'
+                for line in numbered_lines:
+                    formatted_snippet += f"{indent_prefix}{line}\n"
+                code_line.append(Text(formatted_snippet))
             else:
                 # Single line snippet with line number
                 if len(formatted_snippet) > 60:  # Truncate if too long
                     formatted_snippet = formatted_snippet[:57] + "..."
-                code_line.append(Text(f"\t{start_line}| `{formatted_snippet}`", style="bright_white"))
+                code_line.append(Text(f"{start_line}| `{formatted_snippet}`"))
             self.console.print(code_line)
 
 
