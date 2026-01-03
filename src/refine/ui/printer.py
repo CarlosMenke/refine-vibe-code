@@ -374,6 +374,16 @@ class Printer:
                 description_line.append(Text(line, style=""))
                 self.console.print(description_line)
 
+        # Print suggested name on new line if available (from evidence details)
+        if finding.evidence:
+            details = finding.evidence[0].details or {}
+            suggested_name = details.get("suggested_name")
+            if suggested_name:
+                suggestion_line = Text("\t", style="dim")
+                suggestion_line.append(Text("Rename to: ", style="dim"))
+                suggestion_line.append(Text(suggested_name, style="bold green"))
+                self.console.print(suggestion_line)
+
         # Print code snippet on new line if available
         if finding.code_snippet:
             formatted_snippet = finding.code_snippet.strip()

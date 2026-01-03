@@ -190,7 +190,7 @@ Return JSON with ONLY significant issues (prefer fewer, high-quality findings ov
       "type": "naming|style|ai_pattern|typo|misleading",
       "severity": "low|medium|high",
       "title": "Brief, specific title (include the problematic name in quotes)",
-      "description": "Why it's problematic and what to rename it to",
+      "description": "One concise sentence explaining why it's problematic",
       "line_number": 42,
       "confidence": 0.8,
       "current_name": "oldName",
@@ -205,6 +205,8 @@ Return JSON with ONLY significant issues (prefer fewer, high-quality findings ov
 IMPORTANT RULES:
 - line_number: Must match the EXACT line number shown at the start of each line
 - title: Include the problematic name in quotes (e.g., "Cryptic function name 'f'")
+- description: Keep it SHORT - one sentence max. Don't repeat the title or explain what the fix is.
+- suggested_name: Provide a better name if applicable (optional - omit if no clear suggestion)
 - show_snippet: Set to FALSE if the issue is clear from the title alone
 - show_snippet: Set to TRUE only when code context helps understand why the name is bad
 - snippet_lines: If show_snippet is true, specify context lines (1-3). Use minimal lines needed.
@@ -304,11 +306,8 @@ Return {{"issues": []}} if no significant issues found."""
         if line_number < 1 or line_number > len(lines):
             line_number = 1
 
-        # Create description with suggestions
+        # Create description (keep it concise, suggested_name is shown separately by printer)
         description = issue.get("description", "LLM detected a naming or style issue")
-
-        if issue.get("suggested_name"):
-            description += f" Consider renaming to: {issue['suggested_name']}"
 
         # Determine fix type and prompt
         fix_prompt = "Review and improve the naming"
