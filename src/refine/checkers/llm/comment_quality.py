@@ -15,6 +15,11 @@ if TYPE_CHECKING:
 class CommentQualityChecker(BaseChecker):
     """Checker that uses LLM to analyze comments and docstrings for AI-generated patterns."""
 
+    # Maximum lines per chunk to avoid LLM response truncation
+    MAX_CHUNK_LINES = 150
+    # Overlap between chunks to maintain context
+    CHUNK_OVERLAP = 10
+
     def __init__(self):
         super().__init__(
             name="comment_quality",
@@ -23,21 +28,58 @@ class CommentQualityChecker(BaseChecker):
         )
 
     def _extract_code_snippet(self, content: str, line_number: int, context_lines: int = 1) -> str:
-        """Extract a code snippet around the given line number."""
+        """Extract a minimal but sufficient code snippet around the given line.
+
+        Dynamically adjusts size based on content type:
+        - Single-line comments: show comment + 1 line of context
+        - Docstrings: show opening + first few meaningful lines
+        - Trims unnecessary blank lines
+        """
         lines = content.splitlines()
         if line_number < 1 or line_number > len(lines):
             return ""
 
-        # Get the target line and some context
-        start_line = max(0, line_number - context_lines - 1)
-        end_line = min(len(lines), line_number + context_lines)
+        target_idx = line_number - 1  # Convert to 0-indexed
+        target_line = lines[target_idx].strip()
 
-        # Extract the snippet
-        snippet_lines = lines[start_line:end_line]
+        # Determine snippet bounds based on content type
+        if target_line.startswith('#'):
+            # Single-line comment: minimal context
+            start_idx = max(0, target_idx - 1)
+            end_idx = min(len(lines), target_idx + 2)
+        elif '"""' in target_line or "'''" in target_line:
+            # Docstring start: show opening + a few lines
+            start_idx = max(0, target_idx - 1)
+            # Find docstring end or limit to 4 lines
+            end_idx = target_idx + 1
+            quote = '"""' if '"""' in target_line else "'''"
+            for i in range(target_idx + 1, min(len(lines), target_idx + 5)):
+                end_idx = i + 1
+                if quote in lines[i] and i != target_idx:
+                    break
+        else:
+            # Default: small context
+            start_idx = max(0, target_idx - 1)
+            end_idx = min(len(lines), target_idx + 2)
 
-        # Join with line numbers for clarity
+        # Extract and trim unnecessary blank lines at edges
+        snippet_lines = lines[start_idx:end_idx]
+
+        # Remove leading blank lines (but keep at least one context line before target)
+        while len(snippet_lines) > 1 and not snippet_lines[0].strip():
+            if start_idx + 1 < target_idx:
+                snippet_lines = snippet_lines[1:]
+                start_idx += 1
+            else:
+                break
+
+        # Remove trailing blank lines
+        while len(snippet_lines) > 1 and not snippet_lines[-1].strip():
+            snippet_lines = snippet_lines[:-1]
+
+        # Build numbered output
         numbered_lines = []
-        for i, line in enumerate(snippet_lines, start_line + 1):
+        for i, line in enumerate(snippet_lines, start_idx + 1):
             marker = ">" if i == line_number else " "
             numbered_lines.append(f"{marker} {i:3d}| {line}")
 
@@ -45,6 +87,44 @@ class CommentQualityChecker(BaseChecker):
 
     def _get_supported_extensions(self) -> List[str]:
         return [".py"]
+
+    def _split_into_chunks(self, content: str) -> List[tuple]:
+        """Split content into chunks with line offset information.
+
+        Returns list of (chunk_content, start_line) tuples.
+        """
+        lines = content.splitlines()
+        total_lines = len(lines)
+
+        if total_lines <= self.MAX_CHUNK_LINES:
+            return [(content, 1)]
+
+        chunks = []
+        start_line = 0
+
+        while start_line < total_lines:
+            end_line = min(start_line + self.MAX_CHUNK_LINES, total_lines)
+            chunk_lines = lines[start_line:end_line]
+            chunk_content = '\n'.join(chunk_lines)
+
+            # Add line numbers to help LLM identify positions
+            numbered_chunk = self._add_line_numbers(chunk_lines, start_line + 1)
+
+            chunks.append((numbered_chunk, start_line + 1))
+
+            # Move to next chunk with overlap
+            start_line = end_line - self.CHUNK_OVERLAP
+            if start_line >= total_lines - self.CHUNK_OVERLAP:
+                break
+
+        return chunks
+
+    def _add_line_numbers(self, lines: List[str], start_line: int) -> str:
+        """Add line numbers to code for LLM reference."""
+        numbered_lines = []
+        for i, line in enumerate(lines, start_line):
+            numbered_lines.append(f"{i:4d}| {line}")
+        return '\n'.join(numbered_lines)
 
     def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze comments and docstrings for quality issues."""
@@ -63,20 +143,32 @@ class CommentQualityChecker(BaseChecker):
                 findings.extend(self._mock_analysis(file_path, content))
                 return findings
 
-            # Create analysis prompt
-            prompt = self._create_analysis_prompt(file_path, content)
+            # Split large files into chunks to avoid response truncation
+            chunks = self._split_into_chunks(content)
+            seen_lines = set()  # Track line numbers to deduplicate findings
 
-            if printer and printer.debug:
-                printer.print_debug(f"LLM prompt for {file_path.name}: {prompt[:200]}...")
+            for chunk_content, start_line in chunks:
+                # Create analysis prompt for this chunk
+                prompt = self._create_analysis_prompt(file_path, chunk_content, start_line)
 
-            # Get LLM analysis
-            response = provider.analyze_code(prompt)
+                if printer and printer.debug:
+                    printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+): {prompt[:200]}...")
 
-            if printer and printer.debug:
-                printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
+                # Get LLM analysis
+                response = provider.analyze_code(prompt)
 
-            # Parse response and create findings
-            findings.extend(self._parse_llm_response(response, file_path, content))
+                if printer and printer.debug:
+                    printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
+
+                # Parse response and create findings
+                chunk_findings = self._parse_llm_response(response, file_path, content)
+
+                # Deduplicate based on line number
+                for finding in chunk_findings:
+                    line = finding.location.line_start
+                    if line not in seen_lines:
+                        seen_lines.add(line)
+                        findings.append(finding)
 
         except Exception as e:
             # If LLM analysis fails, try mock analysis
@@ -171,44 +263,49 @@ class CommentQualityChecker(BaseChecker):
         # Python docstrings and comments
         return '"""' in content or "'''" in content or "#" in content
 
-    def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
+    def _create_analysis_prompt(self, file_path: Path, content: str, start_line: int = 1) -> str:
         """Create a prompt for LLM analysis of comments and docstrings."""
-        return f"""Analyze this Python code for poor quality comments and docstrings that appear to be AI-generated or unnecessary. Look for:
+        return f"""Analyze this Python code for poor quality comments and docstrings. The code has line numbers prefixed (e.g., "  42| code").
 
-1. Comments that simply restate what the code does without adding value
-2. Generic or boilerplate docstrings (e.g., "This function does X" where X is obvious)
-3. Overly verbose comments that don't provide meaningful insight
-4. Comments that contradict or don't match the code
-5. Docstrings that use generic templates or phrases
-6. Redundant comments that explain obvious operations
-7. Comments with poor grammar or robotic phrasing typical of AI generation
-8. Docstrings that don't follow language conventions or are unnecessarily detailed
+Find issues like:
+- Redundant comments that restate what code does (e.g., "# add a and b" before "result = a + b")
+- Generic docstrings that don't add value (e.g., "This function does X" when X is obvious from name)
+- Overly verbose documentation for simple operations
+- Comments that contradict the code
+- AI-generated looking comments (robotic, template-like phrasing)
 
-Code file: {file_path.name}
+File: {file_path.name}
 
-Code:
 ```python
 {content}
 ```
 
-Provide your analysis in the following JSON format:
+Return JSON with ONLY the most significant issues (max 15 per chunk):
 {{
   "issues": [
     {{
-      "type": "unnecessary_comment|redundant_docstring|ai_generated_comment|generic_docstring",
+      "type": "unnecessary_comment|redundant_docstring|ai_generated_comment|generic_docstring|misleading|secrets_in_comment",
       "severity": "low|medium|high",
-      "title": "Brief title",
-      "description": "Detailed description of why this comment/docstring is problematic",
+      "title": "Redundant comment: '<the comment text>'",
+      "description": "Brief explanation of why it's problematic",
       "line_number": 42,
       "confidence": 0.8,
-      "comment_type": "single_line|multi_line|docstring",
-      "suggested_action": "remove|improve|replace",
-      "suggested_text": "Better comment text (optional)"
+      "comment_type": "single_line|docstring",
+      "suggested_action": "remove|improve",
+      "show_snippet": false,
+      "snippet_lines": 0
     }}
   ]
 }}
 
-Focus on actual issues. If no significant issues are found, return {{"issues": []}}."""
+IMPORTANT RULES:
+- line_number: Must match the EXACT line number shown at the start of each line
+- title: Include the actual comment/docstring text in quotes when possible
+- show_snippet: Set to FALSE if the issue is clear from the title alone (e.g., "Redundant comment: '# Create checker'")
+- show_snippet: Set to TRUE only when code context is needed to understand the issue (e.g., misleading docstrings, contradictions)
+- snippet_lines: If show_snippet is true, specify how many lines of context (1-4). Use minimal lines needed.
+
+Return {{"issues": []}} if no significant issues found."""
 
     def _parse_llm_response(self, response: str, file_path: Path, content: str) -> List[Finding]:
         """Parse LLM response and create findings."""
@@ -221,6 +318,8 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
             cleaned_response = response.strip()
             if cleaned_response.startswith('```json'):
                 cleaned_response = cleaned_response[7:]
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response[3:]
             if cleaned_response.endswith('```'):
                 cleaned_response = cleaned_response[:-3]
             cleaned_response = cleaned_response.strip()
@@ -229,18 +328,67 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
             data = json.loads(cleaned_response)
 
             for issue in data.get("issues", []):
-                finding = self._create_finding_from_issue(issue, file_path, content)
-                if finding:
-                    findings.append(finding)
+                try:
+                    finding = self._create_finding_from_issue(issue, file_path, content)
+                    if finding:
+                        findings.append(finding)
+                except Exception:
+                    # Skip malformed issues but continue processing others
+                    continue
 
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except (json.JSONDecodeError, KeyError, TypeError):
             # If JSON parsing fails, try text parsing
-            if printer and printer.debug:
-                printer.print_debug(f"JSON parsing failed: {e}, trying text parsing")
-                printer.print_debug(f"Raw response: {response[:1000]}...")
             findings.extend(self._parse_text_response(response, file_path, content))
 
         return findings
+
+    def _find_comment_line(self, content: str, reported_line: int, title: str) -> int:
+        """Find the actual comment line near the reported line number.
+
+        The LLM may report a line number that's slightly off. This method
+        searches nearby lines to find the actual comment or docstring.
+        """
+        lines = content.splitlines()
+        total_lines = len(lines)
+
+        if reported_line < 1 or reported_line > total_lines:
+            return max(1, min(reported_line, total_lines))
+
+        # Extract the comment text from the title if present
+        # e.g., "Redundant comment: '# Add src directory to path'" -> "# Add src directory to path"
+        comment_text = None
+        if "'" in title:
+            start = title.find("'")
+            end = title.rfind("'")
+            if start < end:
+                comment_text = title[start + 1:end].strip()
+
+        # Search range: reported line ± 3 lines
+        search_range = 3
+
+        # If we have comment text, try to find exact match first
+        if comment_text:
+            for offset in range(search_range + 1):
+                for direction in [0, -1, 1]:
+                    check_line = reported_line + (offset * direction if direction else 0)
+                    if 1 <= check_line <= total_lines:
+                        line_content = lines[check_line - 1]
+                        # Check if this line contains the comment text
+                        if comment_text in line_content or comment_text.lstrip('#').strip() in line_content:
+                            return check_line
+
+        # Fallback: look for any comment or docstring near reported line
+        for offset in range(search_range + 1):
+            for direction in [0, -1, 1]:
+                check_line = reported_line + (offset * direction if direction else 0)
+                if 1 <= check_line <= total_lines:
+                    line_content = lines[check_line - 1].strip()
+                    # Check for single-line comment or docstring
+                    if line_content.startswith('#') or line_content.startswith('"""') or line_content.startswith("'''"):
+                        return check_line
+
+        # If no comment found, return the reported line
+        return reported_line
 
     def _create_finding_from_issue(self, issue: dict, file_path: Path, content: str) -> Finding:
         """Create a finding from a parsed issue."""
@@ -258,8 +406,11 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
             "generic_docstring": FindingType.STYLE_ISSUE,
         }
 
-        # Determine line number
-        line_number = issue.get("line_number", 1)
+        # Determine line number - try to find the actual comment line
+        reported_line = issue.get("line_number", 1)
+        title = issue.get("title", "")
+        line_number = self._find_comment_line(content, reported_line, title)
+
         lines = content.splitlines()
         if line_number < 1 or line_number > len(lines):
             line_number = 1
@@ -281,7 +432,14 @@ Focus on actual issues. If no significant issues are found, return {{"issues": [
         elif suggested_action == "replace" and issue.get("suggested_text"):
             fix_prompt = f"Replace with: {issue['suggested_text']}"
 
-        code_snippet = self._extract_code_snippet(content, line_number, context_lines=2)
+        # Determine if code snippet should be shown (LLM decides)
+        show_snippet = issue.get("show_snippet", True)  # Default to showing for backwards compat
+        snippet_lines = issue.get("snippet_lines", 2)
+
+        if show_snippet:
+            code_snippet = self._extract_code_snippet(content, line_number, context_lines=snippet_lines)
+        else:
+            code_snippet = None
 
         return Finding(
             id=f"comment_quality_{file_path.name}_{line_number}_{hash(issue.get('title', '')) % 1000}",
