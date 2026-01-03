@@ -172,7 +172,13 @@ class Printer:
 
         for file_path in sorted_groups:
             findings_in_group = grouped_findings[file_path]
-            self._print_file_group(file_path, findings_in_group)
+            # Sort findings within each file by severity (decreasing) then confidence (decreasing)
+            severity_order = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
+            sorted_findings = sorted(
+                findings_in_group,
+                key=lambda f: (severity_order.get(f.severity, 5), -f.confidence_score())
+            )
+            self._print_file_group(file_path, sorted_findings)
 
     def _print_file_group(self, file_path: str, findings: List[Finding]) -> None:
         """Print all findings for a specific file."""
@@ -230,10 +236,9 @@ class Printer:
         if finding.description or finding.code_snippet:
             second_line = Text("  ", style="dim")  # Indent with two spaces
 
-            # Add description if different from title - use severity-appropriate color
+            # Add description if different from title
             if finding.description and finding.description != finding.title:
-                desc_color = self._get_description_color(finding.severity.value)
-                second_line.append(Text(finding.description, style=desc_color))
+                second_line.append(Text(finding.description, style="bright_white"))
 
             # Add code snippet if available
             if finding.code_snippet:
@@ -387,17 +392,6 @@ class Printer:
             "medium": "yellow",
             "low": "orange1",
             "info": "dim blue",
-        }
-        return color_map.get(severity.lower(), "white")
-
-    def _get_description_color(self, severity: str) -> str:
-        """Get Rich color for finding description based on severity."""
-        color_map = {
-            "critical": "red",
-            "high": "red",
-            "medium": "yellow",
-            "low": "yellow",  # Changed from dim yellow to regular yellow for better readability
-            "info": "blue",
         }
         return color_map.get(severity.lower(), "white")
 
