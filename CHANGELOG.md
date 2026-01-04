@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2025-01-04
+
+### Added
+- Interactive API key setup with provider and model selection
+- Improved thread safety in analysis functions
+
+### Changed
+- Enhanced TOML configuration generation and formatting
+- Updated model recommendations and configuration examples
+
+### Dependencies
+- Updated uv.lock dependencies
+
 ## [0.1.1] - 2025-01-04
 
 ### Added
