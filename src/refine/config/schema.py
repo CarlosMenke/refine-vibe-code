@@ -63,6 +63,31 @@ class LLMConfig(BaseModel):
     )
 
 
+class ChunkingConfig(BaseModel):
+    """Configuration for code chunking behavior."""
+
+    max_chunk_lines: int = Field(
+        default=150,
+        description="Maximum number of lines per chunk",
+        ge=50,
+        le=500,
+    )
+    use_ast_boundaries: bool = Field(
+        default=True,
+        description="Split chunks at function/class boundaries instead of line counts",
+    )
+    stack_small_files: bool = Field(
+        default=True,
+        description="Combine small files into single chunks to reduce API requests",
+    )
+    stack_threshold: float = Field(
+        default=0.5,
+        description="Stack files if total is under this fraction of max_chunk_lines (0.0-1.0)",
+        ge=0.0,
+        le=1.0,
+    )
+
+
 class CheckersConfig(BaseModel):
     """Configuration for checkers."""
 
@@ -118,6 +143,7 @@ class RefineConfig(BaseModel):
     scan: ScanConfig = Field(default_factory=ScanConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     checkers: CheckersConfig = Field(default_factory=CheckersConfig)
+    chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
 
     model_config = ConfigDict(
@@ -168,6 +194,12 @@ class RefineConfig(BaseModel):
                 "enabled": self.checkers.enabled,
                 "classical_only": self.checkers.classical_only,
                 "llm_only": self.checkers.llm_only,
+            },
+            "chunking": {
+                "max_chunk_lines": self.chunking.max_chunk_lines,
+                "use_ast_boundaries": self.chunking.use_ast_boundaries,
+                "stack_small_files": self.chunking.stack_small_files,
+                "stack_threshold": self.chunking.stack_threshold,
             },
             "output": {
                 "format": self.output.format,
