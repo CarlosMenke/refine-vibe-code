@@ -5,7 +5,7 @@ description = "CLI tool to identify AI-generated code and bad coding patterns"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    {name = "Carlos Menke", email = "carlos.menke@example.com"},
+    {name = "Carlos Menke", email = "carlos.menke@rwth-aachen.de"},
 ]
 keywords = ["code-analysis", "ai-detection", "linting", "cli"]
 classifiers = [
@@ -23,6 +23,7 @@ dependencies = [
     "tomli>=2.0.0; python_version < '3.11'",
     "tomli-w>=1.0.0",
     "openai>=1.0.0",
+    "anthropic>=0.40.0",
     "httpx>=0.25.0",
     "detect-secrets>=1.5.0",
     "tomli>=2.3.0",
