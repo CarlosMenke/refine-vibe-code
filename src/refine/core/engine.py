@@ -94,7 +94,58 @@ class ScanEngine:
             f"Found {len(all_findings)} issues in {results.files_scanned} files."
         )
 
+        # Print checker usage summary
+        self._print_checker_usage_summary()
+
         return results
+
+    def _print_checker_usage_summary(self) -> None:
+        """Print summary of which checkers ran and which were skipped."""
+        from ..checkers import get_all_checkers
+
+        # Get all available checkers and their types
+        all_checkers = {checker.name: checker for checker in get_all_checkers()}
+
+        # Get enabled checkers
+        enabled_checkers = self.auditor.get_enabled_checkers()
+        enabled_names = {c.name for c in enabled_checkers}
+
+        # Determine which checkers were actually used
+        ran_checkers = []
+        skipped_checkers = []
+
+        for checker_name in all_checkers.keys():
+            if checker_name in enabled_names:
+                ran_checkers.append(checker_name)
+            else:
+                skipped_checkers.append(checker_name)
+
+        # Determine if LLM was used
+        llm_used = not self.config.checkers.classical_only and any(
+            not c.is_classical for c in enabled_checkers
+        )
+
+        # Build the colorful summary message
+        parts = []
+
+        if ran_checkers:
+            ran_formatted = ", ".join(f"[cyan]{checker}[/cyan]" for checker in sorted(ran_checkers))
+            parts.append(f"[bold green]✓ Ran:[/bold green] {ran_formatted}")
+
+        if skipped_checkers:
+            skipped_formatted = ", ".join(f"[dim]{checker}[/dim]" for checker in sorted(skipped_checkers))
+            parts.append(f"[yellow]⏭️ Skipped:[/yellow] {skipped_formatted}")
+
+        if llm_used:
+            parts.append("[bold blue]🤖 LLM used[/bold blue]")
+        else:
+            parts.append("[dim]🤖 LLM not used[/dim]")
+
+        summary = " │ ".join(parts)
+
+        # Print the summary with an empty line above the Scan Summary table
+        self.printer.print_status("")  # Empty line
+        self.printer.console.print(summary)
 
     def _scan_files_parallel(self, file_data: List[tuple], batch_files: List[tuple]) -> tuple:
         """Scan files in parallel using separate threads for classical and LLM checkers."""
