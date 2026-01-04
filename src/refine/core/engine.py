@@ -1,9 +1,11 @@
 """Runs the scan pipeline."""
 
 import time
+import threading
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict
 import fnmatch
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..config.schema import RefineConfig
 from .auditor import Auditor
@@ -36,10 +38,6 @@ class ScanEngine:
         results = ScanResults()
         all_findings = []
 
-        # Collect files for batch processing (LLM checkers with stacking support)
-        batch_files: List[tuple] = []  # List of (path, content)
-        processed_in_batch: Set[Path] = set()
-
         # Check if we should use batch processing (only if LLM checkers are enabled)
         has_llm_checkers = not self.config.checkers.classical_only and any(
             not c.is_classical for c in self.auditor.get_enabled_checkers()
@@ -49,11 +47,11 @@ class ScanEngine:
             self.config.chunking.max_chunk_lines * self.config.chunking.stack_threshold
         )
 
-        # First pass: collect files and run classical checkers
-        for i, file_path in enumerate(files_to_scan, 1):
-            if self.printer.verbose:
-                self.printer.print_file_status(f"Scanning ({i}/{len(files_to_scan)})", file_path)
+        # Prepare file data for parallel processing
+        file_data = []
+        batch_files = []
 
+        for file_path in files_to_scan:
             try:
                 # Read file content
                 content = self._read_file_content(file_path)
@@ -61,46 +59,30 @@ class ScanEngine:
                     results.files_skipped += 1
                     continue
 
-                # Run classical checkers immediately
-                findings = self.auditor.audit_file_classical(file_path, content)
-                all_findings.extend(findings)
+                file_data.append((file_path, content))
 
                 # Collect small Python files for batch LLM processing
                 if use_batch and file_path.suffix == '.py':
                     line_count = len(content.splitlines())
                     if line_count <= batch_threshold_lines:
                         batch_files.append((file_path, content))
-                        processed_in_batch.add(file_path)
-                    else:
-                        # Large file: process LLM checkers individually
-                        llm_findings = self.auditor.audit_file_llm(file_path, content)
-                        all_findings.extend(llm_findings)
-                else:
-                    # Non-Python or batch disabled: process LLM individually
-                    llm_findings = self.auditor.audit_file_llm(file_path, content)
-                    all_findings.extend(llm_findings)
-
-                results.files_scanned += 1
 
             except Exception as e:
                 self.auditor.stats.add_error(f"Failed to scan {file_path}: {e}")
                 results.files_skipped += 1
 
-        # Process batched files with LLM checkers
-        if batch_files:
-            if self.printer.verbose:
-                self.printer.print_status(
-                    f"Batch processing {len(batch_files)} small files for LLM analysis..."
-                )
-            batch_findings = self.auditor.audit_files_batch(batch_files)
-            all_findings.extend(batch_findings)
+        # Run parallel processing
+        classical_findings, llm_findings = self._scan_files_parallel(file_data, batch_files)
+
+        all_findings.extend(classical_findings)
+        all_findings.extend(llm_findings)
 
         # Deduplicate findings to prevent the same line being flagged multiple times
         deduplicated_findings = self._deduplicate_findings(all_findings)
 
         # Finalize results
         results.findings = deduplicated_findings
-        results.files_scanned = len(files_to_scan) - results.files_skipped
+        results.files_scanned = len(file_data)
         results.scan_time = time.time() - start_time
         results.config_used = self.config.model_dump()
 
@@ -113,6 +95,71 @@ class ScanEngine:
         )
 
         return results
+
+    def _scan_files_parallel(self, file_data: List[tuple], batch_files: List[tuple]) -> tuple:
+        """Scan files in parallel using separate threads for classical and LLM checkers."""
+        classical_findings = []
+        llm_findings = []
+
+        # Run classical checkers sequentially in their own thread
+        def run_classical_checkers():
+            nonlocal classical_findings
+            for i, (file_path, content) in enumerate(file_data, 1):
+                if self.printer.verbose:
+                    self.printer.print_file_status(f"Running classical checkers ({i}/{len(file_data)})", file_path)
+                try:
+                    findings = self.auditor.audit_file_classical(file_path, content)
+                    classical_findings.extend(findings)
+                except Exception as e:
+                    self.auditor.stats.add_error(f"Classical checkers failed on {file_path}: {e}")
+
+        # Run LLM checkers in parallel threads
+        def run_llm_checkers():
+            nonlocal llm_findings
+            # Use ThreadPoolExecutor for LLM checkers
+            with ThreadPoolExecutor(max_workers=min(len(file_data), 10)) as executor:  # Limit workers to avoid overwhelming
+                future_to_file = {}
+                for file_path, content in file_data:
+                    # Skip files that will be processed in batch
+                    if batch_files and (file_path, content) in batch_files:
+                        continue
+                    future = executor.submit(self.auditor.audit_file_llm, file_path, content)
+                    future_to_file[future] = file_path
+
+                # Collect LLM results
+                for future in as_completed(future_to_file):
+                    file_path = future_to_file[future]
+                    try:
+                        findings = future.result()
+                        llm_findings.extend(findings)
+                        if self.printer.verbose:
+                            self.printer.print_file_status("LLM checkers completed", file_path)
+                    except Exception as e:
+                        self.auditor.stats.add_error(f"LLM checkers failed on {file_path}: {e}")
+
+        # Start classical checkers in their own thread
+        classical_thread = threading.Thread(target=run_classical_checkers)
+        classical_thread.start()
+
+        # Run LLM checkers in parallel (this will block until complete)
+        run_llm_checkers()
+
+        # Wait for classical thread to complete
+        classical_thread.join()
+
+        # Handle batch processing if needed
+        if batch_files:
+            if self.printer.verbose:
+                self.printer.print_status(
+                    f"Batch processing {len(batch_files)} small files for LLM analysis..."
+                )
+            try:
+                batch_findings = self.auditor.audit_files_batch(batch_files)
+                llm_findings.extend(batch_findings)
+            except Exception as e:
+                self.auditor.stats.add_error(f"Batch LLM processing failed: {e}")
+
+        return classical_findings, llm_findings
 
     def _deduplicate_findings(self, findings: List[Finding]) -> List[Finding]:
         """Deduplicate findings to prevent the same line being flagged multiple times."""
