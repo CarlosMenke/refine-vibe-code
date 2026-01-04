@@ -3,15 +3,14 @@
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING
 
-from ..base import BaseChecker
+from .base import LLMBaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
-from refine.providers import get_provider
 
 if TYPE_CHECKING:
     from refine.ui.printer import Printer
 
 
-class VibeNamingChecker(BaseChecker):
+class VibeNamingChecker(LLMBaseChecker):
     """Checker that uses LLM to analyze naming conventions and code style."""
 
     # Maximum lines per chunk to avoid LLM response truncation
@@ -22,8 +21,7 @@ class VibeNamingChecker(BaseChecker):
     def __init__(self):
         super().__init__(
             name="vibe_naming",
-            description="Uses LLM to analyze naming conventions and code style for AI-generated patterns",
-            is_classical=False
+            description="Uses LLM to analyze naming conventions and code style for AI-generated patterns"
         )
 
     def _get_supported_extensions(self) -> List[str]:
@@ -68,86 +66,7 @@ class VibeNamingChecker(BaseChecker):
 
         return "\n".join(numbered_lines)
 
-    def _split_into_chunks(self, content: str) -> List[tuple]:
-        """Split content into chunks with line offset information.
 
-        Returns list of (chunk_content_with_line_numbers, start_line) tuples.
-        """
-        lines = content.splitlines()
-        total_lines = len(lines)
-
-        if total_lines <= self.MAX_CHUNK_LINES:
-            numbered_content = self._add_line_numbers(lines, 1)
-            return [(numbered_content, 1)]
-
-        chunks = []
-        start_line = 0
-
-        while start_line < total_lines:
-            end_line = min(start_line + self.MAX_CHUNK_LINES, total_lines)
-            chunk_lines = lines[start_line:end_line]
-
-            # Add line numbers to help LLM identify positions
-            numbered_chunk = self._add_line_numbers(chunk_lines, start_line + 1)
-
-            chunks.append((numbered_chunk, start_line + 1))
-
-            # Move to next chunk with overlap
-            start_line = end_line - self.CHUNK_OVERLAP
-            if start_line >= total_lines - self.CHUNK_OVERLAP:
-                break
-
-        return chunks
-
-    def _add_line_numbers(self, lines: List[str], start_line: int) -> str:
-        """Add line numbers to code for LLM reference."""
-        numbered_lines = []
-        for i, line in enumerate(lines, start_line):
-            numbered_lines.append(f"{i:4d}| {line}")
-        return '\n'.join(numbered_lines)
-
-    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
-        """Use LLM to analyze code for naming and style issues."""
-        findings = []
-
-        try:
-            # Get LLM provider
-            provider = get_provider()
-
-            # Split large files into chunks to avoid response truncation
-            chunks = self._split_into_chunks(content)
-            seen_lines = set()  # Track line numbers to deduplicate findings
-
-            for chunk_content, start_line in chunks:
-                # Create analysis prompt for this chunk
-                prompt = self._create_analysis_prompt(file_path, chunk_content, start_line)
-
-                if printer and printer.debug:
-                    printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+): {prompt[:200]}...")
-
-                # Get LLM analysis
-                response = provider.analyze_code(prompt)
-
-                # Debug output
-                if printer and printer.debug:
-                    printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
-
-                # Parse response and create findings
-                chunk_findings = self._parse_llm_response(response, file_path, content, printer)
-
-                # Deduplicate based on line number
-                for finding in chunk_findings:
-                    line = finding.location.line_start
-                    if line not in seen_lines:
-                        seen_lines.add(line)
-                        findings.append(finding)
-
-        except Exception as e:
-            # Re-raise the exception so the auditor can show a proper warning
-            # The auditor will catch this and display the LLM error warning box
-            raise
-
-        return findings
 
     def _create_analysis_prompt(self, file_path: Path, content: str, start_line: int = 1) -> str:
         """Create a prompt for LLM analysis of naming and style."""
@@ -412,3 +331,91 @@ Return {{"issues": []}} if no significant issues found."""
                 prompt="Review the code for better naming conventions and style consistency"
             )]
         )
+
+    def _create_stacked_analysis_prompt(self, content: str) -> str:
+        """Create prompt for analyzing stacked files."""
+        return f"""Analyze these Python files for naming conventions and code style issues. Files are separated by "# === FILE: filename.py ===" markers.
+
+ONLY flag issues that are CLEARLY problematic. Be VERY selective - report only the most significant issues:
+
+HIGH PRIORITY (always flag):
+- Extremely cryptic names (single letters like 'f', 'x', 'a' for non-trivial functions)
+- Names with typos (misspellings like 'calculte', 'functin')
+- Misleading names (function says 'calculate_average' but computes sum)
+- Names with numbers suggesting copy-paste (func1, func2, result1, result2)
+
+MEDIUM PRIORITY (flag if egregious):
+- Severely inconsistent conventions WITHIN THE SAME SCOPE
+- Extremely verbose/redundant names
+- Names that are profane or unprofessional
+
+LOW PRIORITY (only flag if extreme):
+- Generic names (only if VERY generic like 'stuff', 'thing', 'doSomething')
+- AI-generated patterns (only if obviously robotic)
+
+Return JSON with ONLY significant issues:
+{{
+  "issues": [
+    {{
+      "file": "filename.py",
+      "type": "naming|style|ai_pattern|typo|misleading",
+      "severity": "low|medium|high",
+      "title": "Brief, specific title (include the problematic name in quotes)",
+      "description": "One concise sentence explaining why it's problematic",
+      "line_number": 42,
+      "confidence": 0.8,
+      "current_name": "oldName",
+      "suggested_name": "newDescriptiveName",
+      "category": "variable|function|class|method|parameter",
+      "show_snippet": false,
+      "snippet_lines": 1
+    }}
+  ]
+}}
+
+IMPORTANT RULES:
+- file: Must be the filename from the "# === FILE: xxx ===" marker
+- line_number: Must match the EXACT line number shown
+- title: Include the problematic name in quotes
+- BE SELECTIVE: Return fewer findings but make each one count
+
+Return {{"issues": []}} if no significant issues found.
+
+```python
+{content}
+```"""
+
+    def _parse_stacked_response(self, response: str, files: List[tuple]) -> List[Finding]:
+        """Parse LLM response for stacked files."""
+        findings = []
+
+        # Build a map of filename to (path, content)
+        file_map = {path.name: (path, content) for path, content in files}
+
+        try:
+            import json
+
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            elif cleaned_response.startswith('```'):
+                cleaned_response = cleaned_response[3:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
+            data = json.loads(cleaned_response)
+
+            for issue in data.get("issues", []):
+                filename = issue.get("file", "")
+                if filename in file_map:
+                    file_path, content = file_map[filename]
+                    finding = self._create_finding_from_issue(issue, file_path, content)
+                    if finding:
+                        findings.append(finding)
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback: can't parse, return empty
+            pass
+
+        return findings

@@ -2,18 +2,16 @@
 
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
 
-from ..base import BaseChecker
+from .base import LLMBaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
-from refine.providers import get_provider
 
 if TYPE_CHECKING:
     from refine.ui.printer import Printer
 
 
-class DangerousAILogicChecker(BaseChecker):
+class DangerousAILogicChecker(LLMBaseChecker):
     """Checker that uses LLM to detect dangerous AI/ML logic and security issues."""
 
     # Maximum lines per chunk to avoid LLM response truncation
@@ -33,8 +31,7 @@ class DangerousAILogicChecker(BaseChecker):
     def __init__(self):
         super().__init__(
             name="dangerous_ai_logic",
-            description="Uses LLM to detect dangerous AI/ML logic and security vulnerabilities",
-            is_classical=False
+            description="Uses LLM to detect dangerous AI/ML logic and security vulnerabilities"
         )
 
     def _get_supported_extensions(self) -> List[str]:
@@ -99,116 +96,10 @@ class DangerousAILogicChecker(BaseChecker):
 
         return "\n".join(numbered_lines)
 
-    def _split_into_chunks(self, content: str) -> List[tuple]:
-        """Split content into chunks with line offset information."""
-        lines = content.splitlines()
-        total_lines = len(lines)
 
-        if total_lines <= self.MAX_CHUNK_LINES:
-            numbered_content = self._add_line_numbers(lines, 1)
-            return [(numbered_content, 1)]
-
-        chunks = []
-        start_line = 0
-
-        while start_line < total_lines:
-            end_line = min(start_line + self.MAX_CHUNK_LINES, total_lines)
-            chunk_lines = lines[start_line:end_line]
-            numbered_chunk = self._add_line_numbers(chunk_lines, start_line + 1)
-            chunks.append((numbered_chunk, start_line + 1))
-
-            start_line = end_line - self.CHUNK_OVERLAP
-            if start_line >= total_lines - self.CHUNK_OVERLAP:
-                break
-
-        return chunks
-
-    def _add_line_numbers(self, lines: List[str], start_line: int) -> str:
-        """Add line numbers to code for LLM reference."""
-        return '\n'.join(f"{i:4d}| {line}" for i, line in enumerate(lines, start_line))
-
-    def _process_chunk(self, chunk_data: tuple, file_path: Path, content: str,
-                       provider, printer: Optional["Printer"]) -> List[Finding]:
-        """Process a single chunk - can be run in parallel."""
-        chunk_content, start_line = chunk_data
-
-        prompt = self._create_analysis_prompt(file_path, chunk_content)
-
-        if printer and printer.debug:
-            printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+)")
-
-        response = provider.analyze_code(prompt)
-
-        if printer and printer.debug:
-            printer.print_debug(f"LLM response for {file_path.name}: {response[:500]}...")
-
-        return self._parse_llm_response(response, file_path, content)
-
-    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None,
-                   parallel: bool = False) -> List[Finding]:
-        """Use LLM to analyze code for dangerous AI/ML logic."""
-        findings = []
-
-        # Skip files without AI/ML content
-        if not self._has_ai_frameworks(content):
-            return findings
-
-        try:
-            provider = get_provider()
-
-            if not provider.is_available():
-                return findings
-
-            chunks = self._split_into_chunks(content)
-            seen_lines = set()
-
-            if parallel and len(chunks) > 1:
-                # Process chunks in parallel
-                with ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
-                    futures = {
-                        executor.submit(
-                            self._process_chunk, chunk, file_path, content, provider, printer
-                        ): chunk[1] for chunk in chunks
-                    }
-
-                    for future in as_completed(futures):
-                        try:
-                            chunk_findings = future.result()
-                            for finding in chunk_findings:
-                                line = finding.location.line_start
-                                if line not in seen_lines:
-                                    seen_lines.add(line)
-                                    findings.append(finding)
-                        except Exception as e:
-                            if printer and printer.debug:
-                                printer.print_debug(f"Chunk processing failed: {e}")
-            else:
-                # Process chunks sequentially
-                for chunk_content, start_line in chunks:
-                    prompt = self._create_analysis_prompt(file_path, chunk_content)
-
-                    if printer and printer.debug:
-                        printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+)")
-
-                    response = provider.analyze_code(prompt)
-
-                    if printer and printer.debug:
-                        printer.print_debug(f"LLM response: {response[:500]}...")
-
-                    chunk_findings = self._parse_llm_response(response, file_path, content)
-
-                    for finding in chunk_findings:
-                        line = finding.location.line_start
-                        if line not in seen_lines:
-                            seen_lines.add(line)
-                            findings.append(finding)
-
-        except Exception as e:
-            # Re-raise the exception so the auditor can show a proper warning
-            # The auditor will catch this and display the LLM error warning box
-            raise
-
-        return findings
+    def _has_code_content(self, content: str) -> bool:
+        """Check if file contains AI/ML frameworks."""
+        return self._has_ai_frameworks(content)
 
     def _create_analysis_prompt(self, file_path: Path, content: str) -> str:
         """Create a focused prompt for dangerous AI/ML logic detection."""
@@ -436,5 +327,89 @@ Return {{"issues": []}} if no security issues found."""
                         )]
                     ))
                     break  # One finding per line
+
+        return findings
+
+    def _create_stacked_analysis_prompt(self, content: str) -> str:
+        """Create prompt for analyzing stacked files."""
+        return f"""Analyze these Python files for dangerous AI/ML security vulnerabilities. Files are separated by "# === FILE: filename.py ===" markers.
+
+CRITICAL ISSUES (always flag):
+- Hardcoded API keys for AI services (OpenAI, Anthropic, HuggingFace tokens)
+- exec()/eval() with AI model outputs (code injection risk)
+- torch.load() without weights_only=True (arbitrary code execution)
+- pickle.load() for model deserialization (insecure)
+- Loading models from untrusted URLs without verification
+
+HIGH PRIORITY:
+- User input directly passed to model.predict() without validation
+- Training data loaded from user input (data poisoning)
+- Model outputs used in SQL queries or shell commands
+- Infinite training loops (while True with .fit())
+- No rate limiting on AI API calls
+
+Return JSON with significant issues only (max 8 per file):
+
+{{
+  "issues": [
+    {{
+      "file": "filename.py",
+      "type": "api_key_exposed|code_injection|unsafe_deserialization|data_poisoning|input_validation|resource_exhaustion",
+      "severity": "low|medium|high|critical",
+      "title": "Brief title with the problematic pattern in quotes",
+      "description": "One sentence explaining the security risk",
+      "line_number": 42,
+      "confidence": 0.9,
+      "suggestion": "How to fix it",
+      "show_snippet": false,
+      "snippet_lines": 2
+    }}
+  ]
+}}
+
+IMPORTANT:
+- file: Must be the filename from the "# === FILE: xxx ===" marker
+- line_number: EXACT line number from the prefixed numbers
+- BE SELECTIVE: Only report real security risks
+
+Return {{"issues": []}} if no security issues found.
+
+```python
+{content}
+```"""
+
+    def _parse_stacked_response(self, response: str, files: List[tuple]) -> List[Finding]:
+        """Parse LLM response for stacked files."""
+        findings = []
+
+        # Build a map of filename to (path, content)
+        file_map = {path.name: (path, content) for path, content in files}
+
+        try:
+            import json
+
+            cleaned = response.strip()
+            if cleaned.startswith('```json'):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith('```'):
+                cleaned = cleaned[3:]
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            data = json.loads(cleaned)
+
+            for issue in data.get("issues", []):
+                filename = issue.get("file", "")
+                if filename in file_map:
+                    file_path, content = file_map[filename]
+                    finding = self._create_finding_from_issue(issue, file_path, content)
+                    if finding:
+                        findings.append(finding)
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback to pattern-based detection
+            for file_path, content in files:
+                findings.extend(self._fallback_pattern_check(file_path, content))
 
         return findings

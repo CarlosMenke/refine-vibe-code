@@ -4,27 +4,20 @@ from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING
 import re
 
-from ..base import BaseChecker
+from .base import LLMBaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
-from refine.providers import get_provider
 
 if TYPE_CHECKING:
     from refine.ui.printer import Printer
 
 
-class CommentQualityChecker(BaseChecker):
+class CommentQualityChecker(LLMBaseChecker):
     """Checker that uses LLM to analyze comments and docstrings for AI-generated patterns."""
-
-    # Maximum lines per chunk to avoid LLM response truncation
-    MAX_CHUNK_LINES = 150
-    # Overlap between chunks to maintain context
-    CHUNK_OVERLAP = 10
 
     def __init__(self):
         super().__init__(
             name="comment_quality",
-            description="Uses LLM to detect unnecessary, redundant, or AI-generated comments and docstrings",
-            is_classical=False
+            description="Uses LLM to detect unnecessary, redundant, or AI-generated comments and docstrings"
         )
 
     def _extract_code_snippet(self, content: str, line_number: int, context_lines: int = 1) -> str:
@@ -85,97 +78,36 @@ class CommentQualityChecker(BaseChecker):
 
         return "\n".join(numbered_lines)
 
+    def _analyze_chunk(
+        self,
+        provider,
+        file_path: Path,
+        chunk_content: str,
+        start_line: int,
+        content: str,
+        printer: Optional["Printer"] = None
+    ) -> List[Finding]:
+        """Analyze a single chunk with the LLM provider."""
+        prompt = self._create_analysis_prompt(file_path, chunk_content, start_line)
+
+        if printer and printer.debug:
+            printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+): {prompt[:200]}...")
+
+        response = provider.analyze_code(prompt)
+
+        if printer and printer.debug:
+            printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
+
+        return self._parse_llm_response(response, file_path, content)
+
     def _get_supported_extensions(self) -> List[str]:
         return [".py"]
 
-    def _split_into_chunks(self, content: str) -> List[tuple]:
-        """Split content into chunks with line offset information.
 
-        Returns list of (chunk_content, start_line) tuples.
-        """
-        lines = content.splitlines()
-        total_lines = len(lines)
 
-        if total_lines <= self.MAX_CHUNK_LINES:
-            return [(content, 1)]
-
-        chunks = []
-        start_line = 0
-
-        while start_line < total_lines:
-            end_line = min(start_line + self.MAX_CHUNK_LINES, total_lines)
-            chunk_lines = lines[start_line:end_line]
-            chunk_content = '\n'.join(chunk_lines)
-
-            # Add line numbers to help LLM identify positions
-            numbered_chunk = self._add_line_numbers(chunk_lines, start_line + 1)
-
-            chunks.append((numbered_chunk, start_line + 1))
-
-            # Move to next chunk with overlap
-            start_line = end_line - self.CHUNK_OVERLAP
-            if start_line >= total_lines - self.CHUNK_OVERLAP:
-                break
-
-        return chunks
-
-    def _add_line_numbers(self, lines: List[str], start_line: int) -> str:
-        """Add line numbers to code for LLM reference."""
-        numbered_lines = []
-        for i, line in enumerate(lines, start_line):
-            numbered_lines.append(f"{i:4d}| {line}")
-        return '\n'.join(numbered_lines)
-
-    def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
-        """Use LLM to analyze comments and docstrings for quality issues."""
-        findings = []
-
-        # Quick check for presence of comments/docstrings
-        if not self._has_comments_or_docstrings(content, file_path.suffix):
-            return findings
-
-        try:
-            # Get LLM provider
-            provider = get_provider()
-
-            # If provider is not available, use mock analysis for testing
-            if not provider.is_available():
-                findings.extend(self._mock_analysis(file_path, content))
-                return findings
-
-            # Split large files into chunks to avoid response truncation
-            chunks = self._split_into_chunks(content)
-            seen_lines = set()  # Track line numbers to deduplicate findings
-
-            for chunk_content, start_line in chunks:
-                # Create analysis prompt for this chunk
-                prompt = self._create_analysis_prompt(file_path, chunk_content, start_line)
-
-                if printer and printer.debug:
-                    printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+): {prompt[:200]}...")
-
-                # Get LLM analysis
-                response = provider.analyze_code(prompt)
-
-                if printer and printer.debug:
-                    printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
-
-                # Parse response and create findings
-                chunk_findings = self._parse_llm_response(response, file_path, content)
-
-                # Deduplicate based on line number
-                for finding in chunk_findings:
-                    line = finding.location.line_start
-                    if line not in seen_lines:
-                        seen_lines.add(line)
-                        findings.append(finding)
-
-        except Exception as e:
-            # Re-raise the exception so the auditor can show a proper warning
-            # The auditor will catch this and display the LLM error warning box
-            raise
-
-        return findings
+    def _has_code_content(self, content: str) -> bool:
+        """Check if file contains comments or docstrings to analyze."""
+        return self._has_comments_or_docstrings(content, ".py")  # Assume Python for now
 
     def _mock_analysis(self, file_path: Path, content: str) -> List[Finding]:
         """Mock analysis for testing when LLM is not available."""
@@ -533,3 +465,76 @@ Return {{"issues": []}} if no significant issues found."""
                 prompt="Review the comment or docstring for clarity, necessity, and value"
             )]
         )
+
+    def _create_stacked_analysis_prompt(self, content: str) -> str:
+        """Create prompt for analyzing stacked files."""
+        return f"""Analyze these Python files for poor quality comments and docstrings. Files are separated by "# === FILE: filename.py ===" markers.
+
+Find issues like:
+- Redundant comments that restate what code does
+- Generic docstrings that don't add value
+- Overly verbose documentation for simple operations
+- Comments that contradict the code
+- AI-generated looking comments (robotic, template-like phrasing)
+
+{{
+  "issues": [
+    {{
+      "file": "filename.py",
+      "type": "unnecessary_comment|redundant_docstring|ai_generated_comment|generic_docstring|misleading|secrets_in_comment",
+      "severity": "low|medium|high",
+      "title": "Redundant comment: '<the comment text>'",
+      "description": "Brief explanation of why it's problematic",
+      "line_number": 42,
+      "confidence": 0.8,
+      "comment_type": "single_line|docstring",
+      "suggested_action": "remove|improve",
+      "show_snippet": false,
+      "snippet_lines": 0
+    }}
+  ]
+}}
+
+IMPORTANT RULES:
+- file: Must be the filename from the "# === FILE: xxx ===" marker
+- line_number: Use the line number shown at the start of each line
+- Focus on the most significant issues only
+
+Return {{"issues": []}} if no significant issues found.
+
+```python
+{content}
+```"""
+
+    def _parse_stacked_response(self, response: str, files: List[tuple]) -> List[Finding]:
+        """Parse LLM response for stacked files."""
+        findings = []
+
+        # Build a map of filename to (path, content)
+        file_map = {path.name: (path, content) for path, content in files}
+
+        try:
+            import json
+
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
+            data = json.loads(cleaned_response)
+
+            for issue in data.get("issues", []):
+                filename = issue.get("file", "")
+                if filename in file_map:
+                    file_path, content = file_map[filename]
+                    finding = self._create_finding_from_issue(issue, file_path, content)
+                    if finding:
+                        findings.append(finding)
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback: can't parse, return empty
+            pass
+
+        return findings
