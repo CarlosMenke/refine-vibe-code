@@ -5,7 +5,7 @@ description = "CLI tool to identify AI-generated code and bad coding patterns"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Carlos Menke", email = "carlos.menke@example.com"},
 ]
 keywords = ["code-analysis", "ai-detection", "linting", "cli"]
 classifiers = [
@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/refine-vibe-code"
-Repository = "https://github.com/yourusername/refine-vibe-code"
-Issues = "https://github.com/yourusername/refine-vibe-code/issues"
+Homepage = "https://github.com/CarlosMenke/refine-vibe-code"
+Repository = "https://github.com/CarlosMenke/refine-vibe-code"
+Issues = "https://github.com/CarlosMenke/refine-vibe-code/issues"
 
 [project.scripts]
 refine = "refine.main:app"
