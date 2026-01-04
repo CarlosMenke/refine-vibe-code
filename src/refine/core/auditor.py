@@ -1,8 +1,9 @@
 """Logic for classical vs. LLM triage."""
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..config.schema import RefineConfig
 from .results import Finding, ScanResults, ScanStats
@@ -89,26 +90,61 @@ class Auditor:
             return findings
 
         if self.printer.debug:
-            self.printer.print_debug(f"Running {len(llm_checkers)} LLM checkers")
+            self.printer.print_debug(f"Running {len(llm_checkers)} LLM checkers in parallel")
 
-        for checker in llm_checkers:
-            try:
-                if self.printer.debug:
-                    self.printer.print_debug(f"Running LLM checker: {checker.name}")
-                checker_findings = checker.check_file(file_path, content, self.printer)
-                if self.printer.debug:
-                    self.printer.print_debug(f"LLM checker {checker.name} found {len(checker_findings)} findings")
-                findings.extend(checker_findings)
-                self.stats.llm_calls += 1
-            except Exception as e:
-                error_msg = str(e)
-                self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {error_msg}")
-                # Show big warning on first LLM error (likely config issue)
-                if not self._llm_error_shown and self._is_llm_config_error(error_msg):
-                    self.printer.print_llm_error_box(error_msg)
-                    self._llm_error_shown = True
+        # Run LLM checkers in parallel
+        with ThreadPoolExecutor(max_workers=len(llm_checkers)) as executor:
+            # Submit all LLM checker tasks
+            future_to_checker = {
+                executor.submit(self._run_single_llm_checker, checker, file_path, content): checker
+                for checker in llm_checkers
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_checker):
+                checker = future_to_checker[future]
+                try:
+                    checker_findings = future.result()
+                    if self.printer.debug:
+                        self.printer.print_debug(f"LLM checker {checker.name} found {len(checker_findings)} findings")
+                    findings.extend(checker_findings)
+                    self.stats.llm_calls += 1
+                except Exception as e:
+                    error_msg = str(e)
+                    self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {error_msg}")
+                    # Show big warning on first LLM error (likely config issue)
+                    if not self._llm_error_shown and self._is_llm_config_error(error_msg):
+                        self.printer.print_llm_error_box(error_msg)
+                        self._llm_error_shown = True
 
         return findings
+
+    def _run_single_llm_checker(self, checker: BaseChecker, file_path: Path, content: str) -> List[Finding]:
+        """Run a single LLM checker and return its findings."""
+        if self.printer.debug:
+            self.printer.print_debug(f"Running LLM checker: {checker.name}")
+        return checker.check_file(file_path, content, self.printer)
+
+    def _run_batch_llm_checker(self, checker: BaseChecker, files: List[Tuple[Path, str]]) -> List[Finding]:
+        """Run a single LLM checker in batch mode and return its findings."""
+        try:
+            # Check if checker supports batch processing
+            if hasattr(checker, 'supports_batch') and checker.supports_batch():
+                if self.printer.debug:
+                    self.printer.print_debug(f"Using batch mode for {checker.name}")
+                return checker.check_files(files, self.printer)
+            else:
+                # Fallback: process each file individually
+                if self.printer.debug:
+                    self.printer.print_debug(f"Checker {checker.name} doesn't support batch, using individual mode")
+                findings = []
+                for file_path, content in files:
+                    checker_findings = checker.check_file(file_path, content, self.printer)
+                    findings.extend(checker_findings)
+                return findings
+        except Exception as e:
+            # Re-raise to be handled by the caller
+            raise e
 
     def _is_llm_config_error(self, error_msg: str) -> bool:
         """Check if an error message indicates an LLM configuration issue."""
@@ -160,30 +196,28 @@ class Auditor:
         if self.printer.debug:
             self.printer.print_debug(f"Batch processing {len(files)} files with {len(llm_checkers)} LLM checkers")
 
-        for checker in llm_checkers:
-            try:
-                # Check if checker supports batch processing
-                if hasattr(checker, 'supports_batch') and checker.supports_batch():
-                    if self.printer.debug:
-                        self.printer.print_debug(f"Using batch mode for {checker.name}")
-                    checker_findings = checker.check_files(files, self.printer)
+        # Run batch checkers in parallel
+        with ThreadPoolExecutor(max_workers=len(llm_checkers)) as executor:
+            # Submit all batch checker tasks
+            future_to_checker = {
+                executor.submit(self._run_batch_llm_checker, checker, files): checker
+                for checker in llm_checkers
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_checker):
+                checker = future_to_checker[future]
+                try:
+                    checker_findings = future.result()
                     findings.extend(checker_findings)
-                    self.stats.llm_calls += 1  # One batch call
-                else:
-                    # Fallback: process each file individually
-                    if self.printer.debug:
-                        self.printer.print_debug(f"Checker {checker.name} doesn't support batch, using individual mode")
-                    for file_path, content in files:
-                        checker_findings = checker.check_file(file_path, content, self.printer)
-                        findings.extend(checker_findings)
-                        self.stats.llm_calls += 1
-            except Exception as e:
-                error_msg = str(e)
-                self.stats.add_error(f"LLM checker '{checker.name}' failed in batch mode: {error_msg}")
-                # Show big warning on first LLM error (likely config issue)
-                if not self._llm_error_shown and self._is_llm_config_error(error_msg):
-                    self.printer.print_llm_error_box(error_msg)
-                    self._llm_error_shown = True
+                    self.stats.llm_calls += 1  # One batch call per checker
+                except Exception as e:
+                    error_msg = str(e)
+                    self.stats.add_error(f"LLM checker '{checker.name}' failed in batch mode: {error_msg}")
+                    # Show big warning on first LLM error (likely config issue)
+                    if not self._llm_error_shown and self._is_llm_config_error(error_msg):
+                        self.printer.print_llm_error_box(error_msg)
+                        self._llm_error_shown = True
 
         return findings
 
