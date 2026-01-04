@@ -139,7 +139,7 @@ class ScanEngine:
         if llm_used:
             parts.append("[bold blue]🤖 LLM used[/bold blue]")
         else:
-            parts.append("[dim]🤖 LLM not used[/dim]")
+            parts.append("[dim]LLM not used[/dim]")
 
         summary = " │ ".join(parts)
 
