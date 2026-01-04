@@ -17,27 +17,20 @@ exclude_patterns = [
     ".venv/",
     ".env/",
     "build/",
-    "dist/"
+    "dist/",
 ]
 
 [checkers]
 # List of enabled checkers
 enabled = [
-    # Security Issues
     "hardcoded_secrets",
     "sql_injection",
     "dangerous_ai_logic",
-
-    # Code Quality
     "vibe_naming",
     "comment_quality",
     "edge_cases",
-
-    # Package & Dependencies
     "package_check",
     "dependency_validation",
-
-    # Best Practices
     "boilerplate",
 ]
 
@@ -87,23 +80,26 @@ timeout = 60
 
 # LLM Integration Examples:
 #
+# Google Gemini Models (Recommended - high free tier limits):
+# provider = "google"
+# model = "gemini-2.0-flash-exp"      # Latest experimental, fast (default)
+# model = "gemini-2.0-pro-exp"        # Most capable Gemini 2
+# model = "gemini-2.0-flash"          # Stable fast model
+# model = "gemini-2.5-pro-exp-03-25"  # Latest and most capable
+#
 # OpenAI Models:
 # provider = "openai"
-# model = "gpt-4o"                    # Latest GPT-4 optimized model, great for code analysis
-# model = "gpt-4o-mini"               # Cost-effective GPT-4 model, fast and reliable
-# model = "gpt-4-turbo"               # Previous generation, good balance of speed/cost
-# model = "gpt-3.5-turbo"             # Fastest and cheapest, good for simple checks
-#
-# Google Gemini Models:
-# provider = "google"
-# model = "gemini-2.0-flash-exp"      # Latest experimental model, most advanced
-# model = "gemini-1.5-pro"            # Stable production model, good performance
-# model = "gemini-1.5-flash"          # Fast and cost-effective model
+# model = "gpt-4o-mini"               # Fast and cost-effective (default)
+# model = "gpt-4o"                    # Most capable GPT-4
+# model = "gpt-5"                     # Latest and most capable
+# model = "o1-mini"                   # Reasoning model, slower but thorough
 #
 # Anthropic Claude Models:
 # provider = "claude"
-# model = "claude-3-5-sonnet-20241022" # Latest Claude model, excellent for code analysis
-# model = "claude-3-5-haiku-20241022"  # Fast and cost-effective model
+# model = "claude-sonnet-4-20250514"  # Latest Sonnet, best balance (default)
+# model = "claude-3-5-sonnet-20241022" # Previous Sonnet, proven
+# model = "claude-3-5-haiku-20241022"  # Fast and cost-effective
+# model = "claude-opus-4-20250514"    # Most capable, premium
 
 [output]
 # Output format (rich, json, plain)
@@ -117,3 +113,4 @@ show_fixes = true
 
 # Enable colored output
 color = true
+
