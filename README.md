@@ -4,13 +4,13 @@ A powerful CLI tool that analyzes your codebase for AI-generated code patterns, 
 
 ## 🚀 Installation
 
-
-### pipx
-coming, soon
-
-
 ### Global Installation
 Install `refine` globally as a standalone tool:
+
+#### pipx
+```bash
+pipx install refine-vibe-code
+```
 
 #### With uv
 The fastest way to use `refine` is with [uv](https://www.google.com/search?q=https://astral.sh/uv/). If you don't have it yet, install it with one command:
@@ -22,7 +22,10 @@ uv tool update-shell
 ```
 
 ### homebrew
-coming, soon
+```bash
+brew tab CarlosMenke/homebrew-tab
+brew install refine-vibe-code
+```
 
 ### Install from Source
 
