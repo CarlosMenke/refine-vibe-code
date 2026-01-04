@@ -67,10 +67,20 @@ class ChunkingConfig(BaseModel):
     """Configuration for code chunking behavior."""
 
     max_chunk_lines: int = Field(
-        default=150,
-        description="Maximum number of lines per chunk",
+        default=400,
+        description="Maximum number of lines per chunk (larger = fewer API calls but higher latency per call)",
         ge=50,
-        le=500,
+        le=1500,
+    )
+    parallel_chunks: bool = Field(
+        default=True,
+        description="Process chunks in parallel to reduce total scan time",
+    )
+    max_parallel_requests: int = Field(
+        default=4,
+        description="Maximum number of parallel API requests",
+        ge=1,
+        le=10,
     )
     use_ast_boundaries: bool = Field(
         default=True,
