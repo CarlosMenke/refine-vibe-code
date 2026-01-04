@@ -58,9 +58,6 @@ api_key = "your-google-api-key"
 # Scan current directory with rich output (default)
 refine scan
 
-# Scan with JSON output for CI/CD integration
-refine scan --format json
-
 # Scan specific files only
 refine scan --include "*.py" --include "*.js"
 
