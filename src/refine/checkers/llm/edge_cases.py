@@ -5,7 +5,9 @@ from typing import List, Optional, TYPE_CHECKING
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
+from refine.core.chunker import ASTChunker, add_line_numbers
 from refine.providers import get_provider
+from refine.config.loader import load_config
 
 if TYPE_CHECKING:
     from refine.ui.printer import Printer
@@ -14,17 +16,39 @@ if TYPE_CHECKING:
 class EdgeCasesChecker(BaseChecker):
     """Checker that uses LLM to identify edge cases and potential bugs."""
 
-    # Maximum lines per chunk to avoid LLM response truncation
-    MAX_CHUNK_LINES = 150
-    # Overlap between chunks to maintain context
-    CHUNK_OVERLAP = 10
-
     def __init__(self):
         super().__init__(
             name="edge_cases",
             description="Uses LLM to identify edge cases and potential bugs",
             is_classical=False
         )
+        # Load config to get chunking settings
+        self._config = None
+        self._chunker = None
+
+    def _get_config(self):
+        """Lazy load config."""
+        if self._config is None:
+            self._config = load_config()
+        return self._config
+
+    def _get_chunker(self) -> ASTChunker:
+        """Get or create the AST chunker with config settings."""
+        if self._chunker is None:
+            config = self._get_config()
+            max_lines = config.chunking.max_chunk_lines
+            self._chunker = ASTChunker(max_chunk_lines=max_lines)
+        return self._chunker
+
+    @property
+    def max_chunk_lines(self) -> int:
+        """Get max chunk lines from config."""
+        return self._get_config().chunking.max_chunk_lines
+
+    @property
+    def use_ast_boundaries(self) -> bool:
+        """Check if AST boundary chunking is enabled."""
+        return self._get_config().chunking.use_ast_boundaries
 
     def _extract_code_snippet(self, content: str, line_number: int, context_lines: int = 1) -> str:
         """Extract a minimal but sufficient code snippet around the given line.
@@ -89,43 +113,50 @@ class EdgeCasesChecker(BaseChecker):
 
         return "\n".join(numbered_lines)
 
-    def _split_into_chunks(self, content: str) -> List[tuple]:
+    def _split_into_chunks(self, content: str, file_path: Optional[Path] = None) -> List[tuple]:
         """Split content into chunks with line offset information.
+
+        Uses AST-based chunking if enabled, falling back to line-based chunking.
+        No overlap is used - chunks are split at logical boundaries.
 
         Returns list of (chunk_content, start_line) tuples.
         """
         lines = content.splitlines()
         total_lines = len(lines)
 
-        if total_lines <= self.MAX_CHUNK_LINES:
+        # Small files: return as single chunk
+        if total_lines <= self.max_chunk_lines:
             return [(content, 1)]
 
+        # Use AST-based chunking if enabled
+        if self.use_ast_boundaries:
+            chunker = self._get_chunker()
+            chunks = chunker.chunk_content(content, file_path)
+
+            result = []
+            for chunk in chunks:
+                # Add line numbers to help LLM identify positions
+                numbered_content = add_line_numbers(chunk.content, chunk.start_line)
+                result.append((numbered_content, chunk.start_line))
+            return result
+
+        # Fallback: simple line-based chunking without overlap
         chunks = []
         start_line = 0
 
         while start_line < total_lines:
-            end_line = min(start_line + self.MAX_CHUNK_LINES, total_lines)
+            end_line = min(start_line + self.max_chunk_lines, total_lines)
             chunk_lines = lines[start_line:end_line]
             chunk_content = '\n'.join(chunk_lines)
 
             # Add line numbers to help LLM identify positions
-            numbered_chunk = self._add_line_numbers(chunk_lines, start_line + 1)
-
+            numbered_chunk = add_line_numbers(chunk_content, start_line + 1)
             chunks.append((numbered_chunk, start_line + 1))
 
-            # Move to next chunk with overlap
-            start_line = end_line - self.CHUNK_OVERLAP
-            if start_line >= total_lines - self.CHUNK_OVERLAP:
-                break
+            # Move to next chunk (no overlap)
+            start_line = end_line
 
         return chunks
-
-    def _add_line_numbers(self, lines: List[str], start_line: int) -> str:
-        """Add line numbers to code for LLM reference."""
-        numbered_lines = []
-        for i, line in enumerate(lines, start_line):
-            numbered_lines.append(f"{i:4d}| {line}")
-        return '\n'.join(numbered_lines)
 
     def _mock_analysis(self, file_path: Path, content: str) -> List[Finding]:
         """Mock analysis for testing when LLM is not available."""
@@ -252,7 +283,7 @@ class EdgeCasesChecker(BaseChecker):
                 return findings
 
             # Split large files into chunks to avoid response truncation
-            chunks = self._split_into_chunks(content)
+            chunks = self._split_into_chunks(content, file_path)
             seen_lines = set()  # Track line numbers to deduplicate findings
 
             for chunk_content, start_line in chunks:
@@ -281,6 +312,182 @@ class EdgeCasesChecker(BaseChecker):
         except Exception as e:
             # If LLM analysis fails, try mock analysis
             findings.extend(self._mock_analysis(file_path, content))
+
+        return findings
+
+    def supports_batch(self) -> bool:
+        """Check if this checker supports batch processing of multiple files."""
+        config = self._get_config()
+        return config.chunking.stack_small_files
+
+    def check_files(
+        self,
+        files: List[tuple],
+        printer: Optional["Printer"] = None
+    ) -> List[Finding]:
+        """Analyze multiple files together in batched chunks.
+
+        This method stacks small files together to reduce API calls.
+
+        Args:
+            files: List of (file_path, content) tuples
+            printer: Optional printer for debug output
+
+        Returns:
+            List of findings across all files
+        """
+        from refine.core.chunker import FileStacker
+
+        config = self._get_config()
+        stacker = FileStacker(
+            max_chunk_lines=config.chunking.max_chunk_lines,
+            stack_threshold=config.chunking.stack_threshold
+        )
+
+        # Stack files into chunks
+        chunks = stacker.stack_files(files)
+
+        if printer and printer.debug:
+            printer.print_debug(
+                f"Stacked {len(files)} files into {len(chunks)} chunks "
+                f"(threshold: {config.chunking.stack_threshold * 100:.0f}%)"
+            )
+
+        findings = []
+        try:
+            provider = get_provider()
+            if not provider.is_available():
+                # Fall back to individual file mock analysis
+                for file_path, content in files:
+                    findings.extend(self._mock_analysis(file_path, content))
+                return findings
+
+            seen_issues = set()  # Track (file, line) to deduplicate
+
+            for chunk in chunks:
+                # Add line numbers for LLM reference
+                numbered_content = add_line_numbers(chunk.content, chunk.start_line)
+
+                if chunk.is_stacked:
+                    # Multiple files in this chunk
+                    prompt = self._create_stacked_analysis_prompt(numbered_content)
+                else:
+                    # Single file chunk
+                    prompt = self._create_analysis_prompt(
+                        chunk.file_path, numbered_content, chunk.start_line
+                    )
+
+                if printer and printer.debug:
+                    chunk_desc = "stacked" if chunk.is_stacked else chunk.file_path.name
+                    printer.print_debug(f"Analyzing chunk ({chunk_desc}): {len(chunk.content)} chars")
+
+                response = provider.analyze_code(prompt)
+
+                if chunk.is_stacked:
+                    # Parse stacked response (includes file names)
+                    chunk_findings = self._parse_stacked_response(response, files)
+                else:
+                    chunk_findings = self._parse_llm_response(
+                        response, chunk.file_path, chunk.content
+                    )
+
+                # Deduplicate
+                for finding in chunk_findings:
+                    key = (str(finding.location.file), finding.location.line_start)
+                    if key not in seen_issues:
+                        seen_issues.add(key)
+                        findings.append(finding)
+
+        except Exception as e:
+            if printer and printer.debug:
+                printer.print_debug(f"Batch analysis failed: {e}")
+            # Fall back to individual file analysis
+            for file_path, content in files:
+                findings.extend(self._mock_analysis(file_path, content))
+
+        return findings
+
+    def _create_stacked_analysis_prompt(self, content: str) -> str:
+        """Create prompt for analyzing stacked files."""
+        return f"""Analyze these Python files for potential edge cases, bugs, and security issues. Focus on the most critical issues that could cause runtime errors, security vulnerabilities, or unexpected behavior.
+
+Files are separated by "# === FILE: filename.py ===" markers.
+
+Look for:
+- Missing null/None checks that could cause AttributeError or KeyError
+- Division by zero or other mathematical errors
+- Array/list index out of bounds
+- Type conversion errors
+- Race conditions in concurrent code
+- Resource leaks (files, connections, locks)
+- Input validation gaps
+- Logic errors in conditional statements
+- Exception handling issues
+
+```python
+{content}
+```
+
+Return JSON with ONLY the most significant issues (max 10 total). Include the filename for each issue:
+
+{{
+  "issues": [
+    {{
+      "file": "filename.py",
+      "type": "null_check|bounds_check|type_error|race_condition|resource_leak|logic_error|security",
+      "severity": "low|medium|high|critical",
+      "title": "Missing null check in function_name()",
+      "description": "Brief explanation of the issue and its impact",
+      "line_number": 42,
+      "confidence": 0.8,
+      "suggestion": "How to fix the issue",
+      "show_snippet": false,
+      "snippet_lines": 0
+    }}
+  ]
+}}
+
+IMPORTANT RULES:
+- file: Must be the filename from the "# === FILE: xxx ===" marker
+- line_number: Use the line number shown at the start of each line
+- Focus on issues that are likely to cause actual problems
+
+Return {{"issues": []}} if no significant issues found."""
+
+    def _parse_stacked_response(
+        self,
+        response: str,
+        files: List[tuple]
+    ) -> List[Finding]:
+        """Parse LLM response for stacked files."""
+        findings = []
+
+        # Build a map of filename to (path, content)
+        file_map = {path.name: (path, content) for path, content in files}
+
+        try:
+            import json
+
+            cleaned_response = response.strip()
+            if cleaned_response.startswith('```json'):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith('```'):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
+            data = json.loads(cleaned_response)
+
+            for issue in data.get("issues", []):
+                filename = issue.get("file", "")
+                if filename in file_map:
+                    file_path, content = file_map[filename]
+                    finding = self._create_finding_from_issue(issue, file_path, content)
+                    if finding:
+                        findings.append(finding)
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # Fallback: can't parse, return empty
+            pass
 
         return findings
 
