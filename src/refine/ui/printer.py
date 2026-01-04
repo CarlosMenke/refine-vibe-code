@@ -436,15 +436,7 @@ class Printer:
 
     def _print_success_message(self) -> None:
         """Print a success message when no issues are found."""
-        success_panel = Panel(
-            "[bold green]🎉 Excellent! No issues found in your codebase.[/bold green]\n\n"
-            "[dim]Your code looks clean and follows good practices. Keep up the great work![/dim]",
-            title="[bold green]✅ All Clear[/bold green]",
-            border_style="green",
-            title_align="center"
-        )
-        self.console.print("\n")
-        self.console.print(success_panel)
+        self.console.print("\n[bold green]🎉 Excellent! No issues found in your codebase.[/bold green]")
 
     def _print_detailed_findings(self, findings: List[Finding]) -> None:
         """Print detailed information about each finding."""
