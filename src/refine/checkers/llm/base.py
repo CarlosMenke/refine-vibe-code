@@ -24,10 +24,8 @@ class LLMBaseChecker(BaseChecker):
         self._chunker = None
 
     def _get_config(self):
-        """Lazy load config."""
-        if self._config is None:
-            self._config = load_config()
-        return self._config
+        """Load config (no caching for now to debug)."""
+        return load_config()
 
     def _get_chunker(self) -> ASTChunker:
         """Get or create the AST chunker with config settings."""
@@ -136,8 +134,8 @@ class LLMBaseChecker(BaseChecker):
             seen_lines = set()  # Track line numbers to deduplicate findings
 
             config = self._get_config()
-            use_parallel = config.chunking.parallel_chunks and len(chunks) > 1
-            max_workers = config.chunking.max_parallel_requests
+            use_parallel = getattr(config.chunking, 'parallel_chunks', True) and len(chunks) > 1
+            max_workers = getattr(config.chunking, 'max_parallel_requests', 4)
 
             if use_parallel:
                 # Process chunks in parallel for faster scanning
