@@ -36,7 +36,20 @@ class ScanEngine:
         results = ScanResults()
         all_findings = []
 
-        # Process each file
+        # Collect files for batch processing (LLM checkers with stacking support)
+        batch_files: List[tuple] = []  # List of (path, content)
+        processed_in_batch: Set[Path] = set()
+
+        # Check if we should use batch processing (only if LLM checkers are enabled)
+        has_llm_checkers = not self.config.checkers.classical_only and any(
+            not c.is_classical for c in self.auditor.get_enabled_checkers()
+        )
+        use_batch = has_llm_checkers and self.config.chunking.stack_small_files
+        batch_threshold_lines = int(
+            self.config.chunking.max_chunk_lines * self.config.chunking.stack_threshold
+        )
+
+        # First pass: collect files and run classical checkers
         for i, file_path in enumerate(files_to_scan, 1):
             if self.printer.verbose:
                 self.printer.print_file_status(f"Scanning ({i}/{len(files_to_scan)})", file_path)
@@ -48,15 +61,39 @@ class ScanEngine:
                     results.files_skipped += 1
                     continue
 
-                # Audit the file
-                findings = self.auditor.audit_file(file_path, content)
+                # Run classical checkers immediately
+                findings = self.auditor.audit_file_classical(file_path, content)
                 all_findings.extend(findings)
+
+                # Collect small Python files for batch LLM processing
+                if use_batch and file_path.suffix == '.py':
+                    line_count = len(content.splitlines())
+                    if line_count <= batch_threshold_lines:
+                        batch_files.append((file_path, content))
+                        processed_in_batch.add(file_path)
+                    else:
+                        # Large file: process LLM checkers individually
+                        llm_findings = self.auditor.audit_file_llm(file_path, content)
+                        all_findings.extend(llm_findings)
+                else:
+                    # Non-Python or batch disabled: process LLM individually
+                    llm_findings = self.auditor.audit_file_llm(file_path, content)
+                    all_findings.extend(llm_findings)
 
                 results.files_scanned += 1
 
             except Exception as e:
                 self.auditor.stats.add_error(f"Failed to scan {file_path}: {e}")
                 results.files_skipped += 1
+
+        # Process batched files with LLM checkers
+        if batch_files:
+            if self.printer.verbose:
+                self.printer.print_status(
+                    f"Batch processing {len(batch_files)} small files for LLM analysis..."
+                )
+            batch_findings = self.auditor.audit_files_batch(batch_files)
+            all_findings.extend(batch_findings)
 
         # Deduplicate findings to prevent the same line being flagged multiple times
         deduplicated_findings = self._deduplicate_findings(all_findings)
