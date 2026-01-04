@@ -204,8 +204,9 @@ class DangerousAILogicChecker(BaseChecker):
                             findings.append(finding)
 
         except Exception as e:
-            if printer and printer.debug:
-                printer.print_debug(f"LLM analysis failed for {file_path.name}: {e}")
+            # Re-raise the exception so the auditor can show a proper warning
+            # The auditor will catch this and display the LLM error warning box
+            raise
 
         return findings
 

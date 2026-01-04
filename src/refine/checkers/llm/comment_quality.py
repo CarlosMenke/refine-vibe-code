@@ -171,8 +171,9 @@ class CommentQualityChecker(BaseChecker):
                         findings.append(finding)
 
         except Exception as e:
-            # If LLM analysis fails, try mock analysis
-            findings.extend(self._mock_analysis(file_path, content))
+            # Re-raise the exception so the auditor can show a proper warning
+            # The auditor will catch this and display the LLM error warning box
+            raise
 
         return findings
 

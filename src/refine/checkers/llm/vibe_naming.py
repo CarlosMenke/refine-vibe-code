@@ -143,10 +143,9 @@ class VibeNamingChecker(BaseChecker):
                         findings.append(finding)
 
         except Exception as e:
-            # If LLM analysis fails, don't create findings
-            if printer:
-                printer.print_debug(f"LLM analysis failed for {file_path.name}: {e}")
-            pass
+            # Re-raise the exception so the auditor can show a proper warning
+            # The auditor will catch this and display the LLM error warning box
+            raise
 
         return findings
 

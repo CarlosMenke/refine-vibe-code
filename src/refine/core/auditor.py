@@ -18,6 +18,7 @@ class Auditor:
         self.printer = printer
         self.checkers: Dict[str, BaseChecker] = {}
         self.stats = ScanStats()
+        self._llm_error_shown = False  # Track if LLM error warning has been shown
 
     def register_checker(self, checker: BaseChecker) -> None:
         """Register a checker with the auditor."""
@@ -100,9 +101,45 @@ class Auditor:
                 findings.extend(checker_findings)
                 self.stats.llm_calls += 1
             except Exception as e:
-                self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {e}")
+                error_msg = str(e)
+                self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {error_msg}")
+                # Show big warning on first LLM error (likely config issue)
+                if not self._llm_error_shown and self._is_llm_config_error(error_msg):
+                    self.printer.print_llm_error_box(error_msg)
+                    self._llm_error_shown = True
 
         return findings
+
+    def _is_llm_config_error(self, error_msg: str) -> bool:
+        """Check if an error message indicates an LLM configuration issue."""
+        config_error_patterns = [
+            "api key",
+            "api_key",
+            "apikey",
+            "authentication",
+            "unauthorized",
+            "invalid key",
+            "invalid api",
+            "model not found",
+            "model_not_found",
+            "invalid model",
+            "rate limit",
+            "quota",
+            "billing",
+            "permission denied",
+            "access denied",
+            "connection error",
+            "timeout",
+            "network",
+            "404",
+            "401",
+            "403",
+            "500",
+            "502",
+            "503",
+        ]
+        error_lower = error_msg.lower()
+        return any(pattern in error_lower for pattern in config_error_patterns)
 
     def audit_files_batch(self, files: List[tuple]) -> List[Finding]:
         """Run LLM checkers on multiple files in batch mode.
@@ -141,7 +178,12 @@ class Auditor:
                         findings.extend(checker_findings)
                         self.stats.llm_calls += 1
             except Exception as e:
-                self.stats.add_error(f"LLM checker '{checker.name}' failed in batch mode: {e}")
+                error_msg = str(e)
+                self.stats.add_error(f"LLM checker '{checker.name}' failed in batch mode: {error_msg}")
+                # Show big warning on first LLM error (likely config issue)
+                if not self._llm_error_shown and self._is_llm_config_error(error_msg):
+                    self.printer.print_llm_error_box(error_msg)
+                    self._llm_error_shown = True
 
         return findings
 

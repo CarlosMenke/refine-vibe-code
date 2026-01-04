@@ -353,8 +353,9 @@ class EdgeCasesChecker(BaseChecker):
                             findings.append(finding)
 
         except Exception as e:
-            # If LLM analysis fails, try mock analysis
-            findings.extend(self._mock_analysis(file_path, content))
+            # Re-raise the exception so the auditor can show a proper warning
+            # The auditor will catch this and display the LLM error warning box
+            raise
 
         return findings
 
@@ -442,11 +443,9 @@ class EdgeCasesChecker(BaseChecker):
                         findings.append(finding)
 
         except Exception as e:
-            if printer and printer.debug:
-                printer.print_debug(f"Batch analysis failed: {e}")
-            # Fall back to individual file analysis
-            for file_path, content in files:
-                findings.extend(self._mock_analysis(file_path, content))
+            # Re-raise the exception so the auditor can show a proper warning
+            # The auditor will catch this and display the LLM error warning box
+            raise
 
         return findings
 

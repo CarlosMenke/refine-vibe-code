@@ -151,6 +151,39 @@ class Printer:
         self.console.print(warning_panel)
         self.console.print("\n")
 
+    def print_llm_error_box(self, error_message: str) -> None:
+        """Print big warning box when LLM is configured but fails to work."""
+        # Extract the most relevant part of the error
+        error_display = str(error_message)
+        if len(error_display) > 200:
+            error_display = error_display[:200] + "..."
+
+        warning_content = (
+            "[bold red]🚨 LLM PROVIDER FAILED![/bold red]\n\n"
+            f"[dim]Error:[/dim] [yellow]{error_display}[/yellow]\n\n"
+            "[dim]FALLING BACK TO BASIC PATTERN MATCHING[/dim]\n\n"
+            "The LLM provider is configured but not working. Common causes:\n\n"
+            "• [bold cyan]Invalid API key:[/bold cyan] Check that your API key is correct and active\n"
+            "• [bold cyan]Wrong model name:[/bold cyan] Verify the model name in [magenta]refine.toml[/magenta]\n"
+            "• [bold cyan]Rate limit exceeded:[/bold cyan] Wait a moment and try again\n"
+            "• [bold cyan]Network issues:[/bold cyan] Check your internet connection\n"
+            "• [bold cyan]API quota exhausted:[/bold cyan] Check your billing/usage limits\n\n"
+            "[dim]Check your configuration in [magenta]refine.toml[/magenta] or environment variables.[/dim]"
+        )
+
+        warning_panel = Panel(
+            warning_content,
+            title="[bold red]⚠️  LLM ERROR - ANALYSIS DEGRADED[/bold red]",
+            title_align="center",
+            border_style="red",
+            padding=(1, 2),
+            expand=False
+        )
+
+        self.console.print("\n")
+        self.console.print(warning_panel)
+        self.console.print("\n")
+
     def print_error(self, message: str) -> None:
         """Print error message."""
         if self.output_format == "rich":
@@ -389,7 +422,7 @@ class Printer:
 
         # Print code snippet on new line if available
         if finding.code_snippet:
-            formatted_snippet = finding.code_snippet.strip()
+            formatted_snippet = '\n'.join(line.rstrip() for line in finding.code_snippet.split('\n'))
 
             # Safety limit: max 15 lines to prevent overflow
             lines = formatted_snippet.split('\n')
