@@ -2,41 +2,50 @@
 
 A powerful CLI tool that analyzes your codebase for AI-generated code patterns, security vulnerabilities, and code quality issues. Perfect for developers who want to maintain professional code standards.
 
-## ✨ Quick Start (2 minutes setup)
+## 🚀 Installation
+
 
 ### pipx
+coming, soon
 
-### homebrew
+### homebrew (MacOS)
+coming, soon
 
-### 1. Install from source
 
-#### With uv (recommended)
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-or
-```bash
-pipx install uv
-```
+The fastest way to use `refine` is with [uv](https://www.google.com/search?q=https://astral.sh/uv/). If you don't have it yet, install it with one command:
+`curl -LsSf https://astral.sh/uv/install.sh | sh`
 
-# TODO: CHECK IF IT WORKS
-**Option A: Install globally (recommended)**
+### 1. Quick Install (Recommended)
+
+Install `refine` globally as a standalone tool:
+
 ```bash
 uv tool install refine-vibe-code
+
 ```
 
-**Option B: Install from source**
+### 2. Install from Source
+
+Use this if you want to modify the code or contribute:
+
 ```bash
 git clone https://github.com/CarlosMenke/refine-vibe-code.git
 cd refine-vibe-code
-uv venv .venv && source .venv/bin/activate && uv sync
+
+# Setup and run instantly
 uv run refine
+
 ```
 
-#### With pip
+### 3. Traditional Install (pip)
+
+If you prefer standard Python tools:
+
 ```bash
-git clone https://github.com/CarlosMenke/refine-vibe-code.git && cd refine-vibe-code
-python -m venv .venv && source .venv/bin/activate && pip install .
+git clone https://github.com/CarlosMenke/refine-vibe-code.git
+cd refine-vibe-code
+pip install .
+
 ```
 
 ### LLM Integration (for deeper analysis)
