@@ -1,0 +1,99 @@
+# Example configuration file for Refine Vibe Code
+# Copy this file to your project root or use --config option
+
+[scan]
+# File patterns to include in scanning
+include_patterns = [
+    "*.py",
+    "*requirements*.txt",
+]
+
+# File patterns to exclude from scanning
+exclude_patterns = [
+    "__pycache__/",
+    "*.pyc",
+    "node_modules/",
+    ".git/",
+    ".venv/",
+    ".env/",
+    "build/",
+    "dist/"
+]
+
+[checkers]
+# List of enabled checkers
+enabled = [
+    # Security Issues
+    "hardcoded_secrets",
+    "sql_injection",
+    #"dangerous_ai_logic",
+
+    # Code Quality
+    #"vibe_naming",
+    #"comment_quality",
+    #"edge_cases",
+
+    # Package & Dependencies
+    #"package_check",
+    #"dependency_validation",
+
+    # Best Practices
+    #"boilerplate",
+]
+
+# Only run classical (AST-based) checkers
+classical_only = false
+
+# Only run LLM-based checkers
+llm_only = false
+
+[chunking]
+# Maximum lines per chunk (larger = fewer API calls, faster scans)
+max_chunk_lines = 500
+
+# Process chunks in parallel (significant speedup for large files)
+parallel_chunks = true
+
+# Maximum parallel API requests (4 is a good balance for rate limits)
+max_parallel_requests = 10
+
+# Use AST-based boundaries (function/class) instead of line counts
+use_ast_boundaries = true
+
+# Combine small files into single chunks to reduce API requests
+stack_small_files = true
+
+# Stack files if total is under this fraction of max_chunk_lines (0.0-1.0)
+stack_threshold = 0.5
+
+[llm]
+# LLM provider (openai, google)
+provider = "google"
+
+# Model name to use
+model = "gemini-2.0-flash-exp"
+
+# API key (can also be set via GOOGLE_API_KEY environment variable)
+api_key = ""
+
+# Temperature for responses (0.0 = deterministic, 2.0 = creative)
+temperature = 0.1
+
+# Maximum tokens in response
+max_tokens = 100000
+
+# Request timeout in seconds
+timeout = 60
+
+[output]
+# Output format (rich, json, plain)
+format = "rich"
+
+# Enable verbose output
+verbose = false
+
+# Show suggested fixes
+show_fixes = true
+
+# Enable colored output
+color = true

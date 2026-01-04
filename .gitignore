@@ -136,7 +136,7 @@ dmypy.json
 *~
 
 # Optional: Uncomment to ignore config file if it contains API keys
-refine.toml
+# refine.toml
 
 # OS
 .DS_Store
