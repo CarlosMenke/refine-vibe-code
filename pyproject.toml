@@ -1,6 +1,6 @@
 [project]
 name = "refine-vibe-code"
-version = "0.1.1"
+version = "0.1.2"
 description = "CLI tool to identify AI-generated code and bad coding patterns"
 readme = "README.md"
 requires-python = ">=3.12"
