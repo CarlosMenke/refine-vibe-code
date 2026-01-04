@@ -14,6 +14,10 @@ A powerful CLI tool that analyzes your codebase for AI-generated code patterns, 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
+or
+```bash
+pipx install uv
+```
 
 # TODO: CHECK IF IT WORKS
 **Option A: Install globally (recommended)**
