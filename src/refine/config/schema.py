@@ -187,123 +187,115 @@ class RefineConfig(BaseModel):
 
     def model_dump_toml(self) -> str:
         """Dump configuration as TOML string with comments and structure."""
-        import tomli_w
+
+        def to_toml_bool(val: bool) -> str:
+            return "true" if val else "false"
+
+        def to_toml_array(items: list, indent: str = "    ") -> str:
+            """Format a list as a multi-line TOML array."""
+            if not items:
+                return "[]"
+            lines = ["["]
+            for item in items:
+                lines.append(f'{indent}"{item}",')
+            lines.append("]")
+            return "\n".join(lines)
 
         # Create TOML with comments and proper structure
-        toml_content = """# Example configuration file for Refine Vibe Code
+        toml_content = f"""# Example configuration file for Refine Vibe Code
 # Copy this file to your project root or use --config option
 
 [scan]
 # File patterns to include in scanning
-include_patterns = {include_patterns}
+include_patterns = {to_toml_array(self.scan.include_patterns)}
 
 # File patterns to exclude from scanning
-exclude_patterns = {exclude_patterns}
+exclude_patterns = {to_toml_array(self.scan.exclude_patterns)}
 
 [checkers]
 # List of enabled checkers
-enabled = {enabled}
+enabled = {to_toml_array(self.checkers.enabled)}
 
 # Only run classical (AST-based) checkers
-classical_only = {classical_only}
+classical_only = {to_toml_bool(self.checkers.classical_only)}
 
 # Only run LLM-based checkers
-llm_only = {llm_only}
+llm_only = {to_toml_bool(self.checkers.llm_only)}
 
 [chunking]
 # Maximum lines per chunk (larger = fewer API calls, faster scans)
-max_chunk_lines = {max_chunk_lines}
+max_chunk_lines = {self.chunking.max_chunk_lines}
 
 # Process chunks in parallel (significant speedup for large files)
-parallel_chunks = {parallel_chunks}
+parallel_chunks = {to_toml_bool(self.chunking.parallel_chunks)}
 
 # Maximum parallel API requests (4 is a good balance for rate limits)
-max_parallel_requests = {max_parallel_requests}
+max_parallel_requests = {self.chunking.max_parallel_requests}
 
 # Use AST-based boundaries (function/class) instead of line counts
-use_ast_boundaries = {use_ast_boundaries}
+use_ast_boundaries = {to_toml_bool(self.chunking.use_ast_boundaries)}
 
 # Combine small files into single chunks to reduce API requests
-stack_small_files = {stack_small_files}
+stack_small_files = {to_toml_bool(self.chunking.stack_small_files)}
 
 # Stack files if total is under this fraction of max_chunk_lines (0.0-1.0)
-stack_threshold = {stack_threshold}
+stack_threshold = {self.chunking.stack_threshold}
 
 [llm]
 # LLM provider (openai, google, claude)
-provider = "{provider}"
+provider = "{self.llm.provider}"
 
 # Model name to use (see examples below for different providers)
-model = "{model}"
+model = "{self.llm.model}"
 
-# API key (can also be set via OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY environment variables)
-api_key = "{api_key}"
+# API key (can also be set via environment variables: OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY)
+api_key = "{self.llm.api_key or ''}"
 
 # Temperature for responses (0.0 = deterministic, 2.0 = creative)
-temperature = {temperature}
+temperature = {self.llm.temperature}
 
 # Maximum tokens in response
-max_tokens = {max_tokens}
+max_tokens = {self.llm.max_tokens}
 
 # Request timeout in seconds
-timeout = {timeout}
+timeout = {self.llm.timeout}
 
 # LLM Integration Examples:
 #
+# Google Gemini Models (Recommended - high free tier limits):
+# provider = "google"
+# model = "gemini-2.0-flash-exp"      # Latest experimental, fast (default)
+# model = "gemini-2.0-pro-exp"        # Most capable Gemini 2
+# model = "gemini-2.0-flash"          # Stable fast model
+# model = "gemini-2.5-pro-exp-03-25"  # Latest and most capable
+#
 # OpenAI Models:
 # provider = "openai"
-# model = "gpt-4o"                    # Latest GPT-4 optimized model, great for code analysis
-# model = "gpt-4o-mini"               # Cost-effective GPT-4 model, fast and reliable
-# model = "gpt-4-turbo"               # Previous generation, good balance of speed/cost
-# model = "gpt-3.5-turbo"             # Fastest and cheapest, good for simple checks
-#
-# Google Gemini Models:
-# provider = "google"
-# model = "gemini-2.0-flash-exp"      # Latest experimental model, most advanced
-# model = "gemini-1.5-pro"            # Stable production model, good performance
-# model = "gemini-1.5-flash"          # Fast and cost-effective model
+# model = "gpt-4o-mini"               # Fast and cost-effective (default)
+# model = "gpt-4o"                    # Most capable GPT-4
+# model = "gpt-5"                     # Latest and most capable
+# model = "o1-mini"                   # Reasoning model, slower but thorough
 #
 # Anthropic Claude Models:
 # provider = "claude"
-# model = "claude-3-5-sonnet-20241022" # Latest Claude model, excellent for code analysis
-# model = "claude-3-5-haiku-20241022"  # Fast and cost-effective model
+# model = "claude-sonnet-4-20250514"  # Latest Sonnet, best balance (default)
+# model = "claude-3-5-sonnet-20241022" # Previous Sonnet, proven
+# model = "claude-3-5-haiku-20241022"  # Fast and cost-effective
+# model = "claude-opus-4-20250514"    # Most capable, premium
 
 [output]
 # Output format (rich, json, plain)
-format = "{format}"
+format = "{self.output.format}"
 
 # Enable verbose output
-verbose = {verbose}
+verbose = {to_toml_bool(self.output.verbose)}
 
 # Show suggested fixes
-show_fixes = {show_fixes}
+show_fixes = {to_toml_bool(self.output.show_fixes)}
 
 # Enable colored output
-color = {color}
-""".format(
-            include_patterns=self.scan.include_patterns,
-            exclude_patterns=self.scan.exclude_patterns,
-            enabled=self.checkers.enabled,
-            classical_only=self.checkers.classical_only,
-            llm_only=self.checkers.llm_only,
-            max_chunk_lines=self.chunking.max_chunk_lines,
-            parallel_chunks=self.chunking.parallel_chunks,
-            max_parallel_requests=self.chunking.max_parallel_requests,
-            use_ast_boundaries=self.chunking.use_ast_boundaries,
-            stack_small_files=self.chunking.stack_small_files,
-            stack_threshold=self.chunking.stack_threshold,
-            provider=self.llm.provider,
-            model=self.llm.model,
-            api_key=self.llm.api_key or "",
-            temperature=self.llm.temperature,
-            max_tokens=self.llm.max_tokens,
-            timeout=self.llm.timeout,
-            format=self.output.format,
-            verbose=self.output.verbose,
-            show_fixes=self.output.show_fixes,
-            color=self.output.color,
-        )
-
+color = {to_toml_bool(self.output.color)}
+"""
         return toml_content
 
 
