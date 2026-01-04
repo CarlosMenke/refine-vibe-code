@@ -9,13 +9,11 @@ class ScanConfig(BaseModel):
     """Configuration for scanning behavior."""
 
     include_patterns: List[str] = Field(
-        default=["*.py", "*.js", "*.ts", "*.java", "*.cpp", "*.c", "*.go", "*.rs",
-                "requirements*.txt", "pyproject.toml", "setup.py", "setup.cfg",
-                "Pipfile", "Pipfile.lock", "package.json", "package-lock.json", "yarn.lock"],
+        default=["*.py", "*requirements*.txt"],
         description="File patterns to include in scanning",
     )
     exclude_patterns: List[str] = Field(
-        default=["__pycache__/", "*.pyc", "node_modules/", ".git/", "venv/", ".env/"],
+        default=["__pycache__/", "*.pyc", "node_modules/", ".git/", ".venv/", ".env/", "build/", "dist/"],
         description="File patterns to exclude from scanning",
     )
     max_file_size: int = Field(
@@ -32,11 +30,11 @@ class LLMConfig(BaseModel):
     """Configuration for LLM providers."""
 
     provider: str = Field(
-        default="openai",
+        default="google",
         description="LLM provider to use (openai, google)",
     )
     model: str = Field(
-        default="gpt-4",
+        default="gemini-2.0-flash-exp",
         description="Model name to use",
     )
     api_key: Optional[str] = Field(
@@ -54,11 +52,11 @@ class LLMConfig(BaseModel):
         le=2.0,
     )
     max_tokens: int = Field(
-        default=1000,
+        default=100000,
         description="Maximum tokens for LLM responses",
     )
     timeout: int = Field(
-        default=30,
+        default=60,
         description="Timeout for LLM requests in seconds",
     )
 
@@ -67,7 +65,7 @@ class ChunkingConfig(BaseModel):
     """Configuration for code chunking behavior."""
 
     max_chunk_lines: int = Field(
-        default=400,
+        default=500,
         description="Maximum number of lines per chunk (larger = fewer API calls but higher latency per call)",
         ge=50,
         le=1500,
@@ -77,7 +75,7 @@ class ChunkingConfig(BaseModel):
         description="Process chunks in parallel to reduce total scan time",
     )
     max_parallel_requests: int = Field(
-        default=4,
+        default=10,
         description="Maximum number of parallel API requests",
         ge=1,
         le=10,
@@ -103,12 +101,22 @@ class CheckersConfig(BaseModel):
 
     enabled: List[str] = Field(
         default=[
-            "package_check",
-            "boilerplate",
-            "dependency_validation",
-            "edge_cases",
+            # Security Issues
+            "hardcoded_secrets",
+            "sql_injection",
+            "dangerous_ai_logic",
+
+            # Code Quality
             "vibe_naming",
             "comment_quality",
+            "edge_cases",
+
+            # Package & Dependencies
+            "package_check",
+            "dependency_validation",
+
+            # Best Practices
+            "boilerplate",
         ],
         description="List of enabled checkers",
     )
@@ -178,55 +186,105 @@ class RefineConfig(BaseModel):
         return v
 
     def model_dump_toml(self) -> str:
-        """Dump configuration as TOML string."""
+        """Dump configuration as TOML string with comments and structure."""
         import tomli_w
 
-        # Convert to dict and handle nested models
-        data = self.model_dump()
+        # Create TOML with comments and proper structure
+        toml_content = """# Example configuration file for Refine Vibe Code
+# Copy this file to your project root or use --config option
 
-        # Custom serialization for better TOML formatting
-        toml_data = {
-            "scan": {
-                "include_patterns": self.scan.include_patterns,
-                "exclude_patterns": self.scan.exclude_patterns,
-                "max_file_size": self.scan.max_file_size,
-                "max_files": self.scan.max_files,
-            },
-            "llm": {
-                "provider": self.llm.provider,
-                "model": self.llm.model,
-                "api_key": self.llm.api_key,
-                "temperature": self.llm.temperature,
-                "max_tokens": self.llm.max_tokens,
-                "timeout": self.llm.timeout,
-            },
-            "checkers": {
-                "enabled": self.checkers.enabled,
-                "classical_only": self.checkers.classical_only,
-                "llm_only": self.checkers.llm_only,
-            },
-            "chunking": {
-                "max_chunk_lines": self.chunking.max_chunk_lines,
-                "use_ast_boundaries": self.chunking.use_ast_boundaries,
-                "stack_small_files": self.chunking.stack_small_files,
-                "stack_threshold": self.chunking.stack_threshold,
-            },
-            "output": {
-                "format": self.output.format,
-                "verbose": self.output.verbose,
-                "show_fixes": self.output.show_fixes,
-                "color": self.output.color,
-                "debug": self.output.debug,
-            },
-        }
+[scan]
+# File patterns to include in scanning
+include_patterns = {include_patterns}
 
-        # Remove None values for cleaner TOML
-        def clean_dict(d):
-            return {k: v for k, v in d.items() if v is not None}
+# File patterns to exclude from scanning
+exclude_patterns = {exclude_patterns}
 
-        toml_data = {k: clean_dict(v) for k, v in toml_data.items()}
+[checkers]
+# List of enabled checkers
+enabled = {enabled}
 
-        return tomli_w.dumps(toml_data)
+# Only run classical (AST-based) checkers
+classical_only = {classical_only}
+
+# Only run LLM-based checkers
+llm_only = {llm_only}
+
+[chunking]
+# Maximum lines per chunk (larger = fewer API calls, faster scans)
+max_chunk_lines = {max_chunk_lines}
+
+# Process chunks in parallel (significant speedup for large files)
+parallel_chunks = {parallel_chunks}
+
+# Maximum parallel API requests (4 is a good balance for rate limits)
+max_parallel_requests = {max_parallel_requests}
+
+# Use AST-based boundaries (function/class) instead of line counts
+use_ast_boundaries = {use_ast_boundaries}
+
+# Combine small files into single chunks to reduce API requests
+stack_small_files = {stack_small_files}
+
+# Stack files if total is under this fraction of max_chunk_lines (0.0-1.0)
+stack_threshold = {stack_threshold}
+
+[llm]
+# LLM provider (openai, google)
+provider = "{provider}"
+
+# Model name to use
+model = "{model}"
+
+# API key (can also be set via GOOGLE_API_KEY environment variable)
+api_key = "{api_key}"
+
+# Temperature for responses (0.0 = deterministic, 2.0 = creative)
+temperature = {temperature}
+
+# Maximum tokens in response
+max_tokens = {max_tokens}
+
+# Request timeout in seconds
+timeout = {timeout}
+
+[output]
+# Output format (rich, json, plain)
+format = "{format}"
+
+# Enable verbose output
+verbose = {verbose}
+
+# Show suggested fixes
+show_fixes = {show_fixes}
+
+# Enable colored output
+color = {color}
+""".format(
+            include_patterns=self.scan.include_patterns,
+            exclude_patterns=self.scan.exclude_patterns,
+            enabled=self.checkers.enabled,
+            classical_only=self.checkers.classical_only,
+            llm_only=self.checkers.llm_only,
+            max_chunk_lines=self.chunking.max_chunk_lines,
+            parallel_chunks=self.chunking.parallel_chunks,
+            max_parallel_requests=self.chunking.max_parallel_requests,
+            use_ast_boundaries=self.chunking.use_ast_boundaries,
+            stack_small_files=self.chunking.stack_small_files,
+            stack_threshold=self.chunking.stack_threshold,
+            provider=self.llm.provider,
+            model=self.llm.model,
+            api_key=self.llm.api_key or "",
+            temperature=self.llm.temperature,
+            max_tokens=self.llm.max_tokens,
+            timeout=self.llm.timeout,
+            format=self.output.format,
+            verbose=self.output.verbose,
+            show_fixes=self.output.show_fixes,
+            color=self.output.color,
+        )
+
+        return toml_content
 
 
 
