@@ -26,19 +26,19 @@ enabled = [
     # Security Issues
     "hardcoded_secrets",
     "sql_injection",
-    #"dangerous_ai_logic",
+    "dangerous_ai_logic",
 
     # Code Quality
-    #"vibe_naming",
-    #"comment_quality",
-    #"edge_cases",
+    "vibe_naming",
+    "comment_quality",
+    "edge_cases",
 
     # Package & Dependencies
-    #"package_check",
-    #"dependency_validation",
+    "package_check",
+    "dependency_validation",
 
     # Best Practices
-    #"boilerplate",
+    "boilerplate",
 ]
 
 # Only run classical (AST-based) checkers
