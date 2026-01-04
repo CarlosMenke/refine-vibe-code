@@ -31,7 +31,7 @@ class LLMConfig(BaseModel):
 
     provider: str = Field(
         default="google",
-        description="LLM provider to use (openai, google)",
+        description="LLM provider to use (openai, google, claude)",
     )
     model: str = Field(
         default="gemini-2.0-flash-exp",
@@ -173,7 +173,7 @@ class RefineConfig(BaseModel):
     @classmethod
     def validate_llm_config(cls, v):
         """Validate LLM configuration."""
-        if v.provider not in ["openai", "google"]:
+        if v.provider not in ["openai", "google", "claude"]:
             raise ValueError(f"Unsupported LLM provider: {v.provider}")
         return v
 
@@ -230,13 +230,13 @@ stack_small_files = {stack_small_files}
 stack_threshold = {stack_threshold}
 
 [llm]
-# LLM provider (openai, google)
+# LLM provider (openai, google, claude)
 provider = "{provider}"
 
-# Model name to use
+# Model name to use (see examples below for different providers)
 model = "{model}"
 
-# API key (can also be set via GOOGLE_API_KEY environment variable)
+# API key (can also be set via OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY environment variables)
 api_key = "{api_key}"
 
 # Temperature for responses (0.0 = deterministic, 2.0 = creative)
@@ -247,6 +247,26 @@ max_tokens = {max_tokens}
 
 # Request timeout in seconds
 timeout = {timeout}
+
+# LLM Integration Examples:
+#
+# OpenAI Models:
+# provider = "openai"
+# model = "gpt-4o"                    # Latest GPT-4 optimized model, great for code analysis
+# model = "gpt-4o-mini"               # Cost-effective GPT-4 model, fast and reliable
+# model = "gpt-4-turbo"               # Previous generation, good balance of speed/cost
+# model = "gpt-3.5-turbo"             # Fastest and cheapest, good for simple checks
+#
+# Google Gemini Models:
+# provider = "google"
+# model = "gemini-2.0-flash-exp"      # Latest experimental model, most advanced
+# model = "gemini-1.5-pro"            # Stable production model, good performance
+# model = "gemini-1.5-flash"          # Fast and cost-effective model
+#
+# Anthropic Claude Models:
+# provider = "claude"
+# model = "claude-3-5-sonnet-20241022" # Latest Claude model, excellent for code analysis
+# model = "claude-3-5-haiku-20241022"  # Fast and cost-effective model
 
 [output]
 # Output format (rich, json, plain)

@@ -40,6 +40,9 @@ class ProviderFactory:
         elif provider_name in ["google", "gemini"]:
             from .google import GoogleProvider
             return GoogleProvider(config)
+        elif provider_name in ["claude", "anthropic"]:
+            from .claude import ClaudeProvider
+            return ClaudeProvider(config)
         else:
             # Default to OpenAI for backward compatibility
             from .openai import OpenAIProvider
