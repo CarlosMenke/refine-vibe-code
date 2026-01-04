@@ -57,13 +57,16 @@ class Auditor:
     def audit_file(self, file_path: Path, content: str) -> List[Finding]:
         """Audit a single file with all enabled checkers."""
         findings = []
+        findings.extend(self.audit_file_classical(file_path, content))
+        findings.extend(self.audit_file_llm(file_path, content))
+        return findings
+
+    def audit_file_classical(self, file_path: Path, content: str) -> List[Finding]:
+        """Run only classical (AST-based) checkers on a file."""
+        findings = []
         enabled_checkers = self.get_enabled_checkers()
-
-        # Group checkers by type
         classical_checkers = [c for c in enabled_checkers if c.is_classical]
-        llm_checkers = [c for c in enabled_checkers if not c.is_classical]
 
-        # Run classical checkers first (fast)
         for checker in classical_checkers:
             try:
                 checker_findings = checker.check_file(file_path, content, self.printer)
@@ -71,23 +74,74 @@ class Auditor:
             except Exception as e:
                 self.stats.add_error(f"Classical checker '{checker.name}' failed on {file_path}: {e}")
 
-        # Run LLM checkers if appropriate
-        if self.should_use_llm(file_path, content):
+        return findings
+
+    def audit_file_llm(self, file_path: Path, content: str) -> List[Finding]:
+        """Run only LLM-based checkers on a file."""
+        findings = []
+        enabled_checkers = self.get_enabled_checkers()
+        llm_checkers = [c for c in enabled_checkers if not c.is_classical]
+
+        if not self.should_use_llm(file_path, content):
             if self.printer.debug:
-                self.printer.print_debug(f"Running {len(llm_checkers)} LLM checkers")
-            for checker in llm_checkers:
-                try:
+                self.printer.print_debug(f"Skipping LLM checkers (should_use_llm=False)")
+            return findings
+
+        if self.printer.debug:
+            self.printer.print_debug(f"Running {len(llm_checkers)} LLM checkers")
+
+        for checker in llm_checkers:
+            try:
+                if self.printer.debug:
+                    self.printer.print_debug(f"Running LLM checker: {checker.name}")
+                checker_findings = checker.check_file(file_path, content, self.printer)
+                if self.printer.debug:
+                    self.printer.print_debug(f"LLM checker {checker.name} found {len(checker_findings)} findings")
+                findings.extend(checker_findings)
+                self.stats.llm_calls += 1
+            except Exception as e:
+                self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {e}")
+
+        return findings
+
+    def audit_files_batch(self, files: List[tuple]) -> List[Finding]:
+        """Run LLM checkers on multiple files in batch mode.
+
+        Args:
+            files: List of (file_path, content) tuples
+
+        Returns:
+            List of findings from all files
+        """
+        findings = []
+        enabled_checkers = self.get_enabled_checkers()
+        llm_checkers = [c for c in enabled_checkers if not c.is_classical]
+
+        if not llm_checkers:
+            return findings
+
+        if self.printer.debug:
+            self.printer.print_debug(f"Batch processing {len(files)} files with {len(llm_checkers)} LLM checkers")
+
+        for checker in llm_checkers:
+            try:
+                # Check if checker supports batch processing
+                if hasattr(checker, 'supports_batch') and checker.supports_batch():
                     if self.printer.debug:
-                        self.printer.print_debug(f"Running LLM checker: {checker.name}")
-                    checker_findings = checker.check_file(file_path, content, self.printer)
-                    if self.printer.debug:
-                        self.printer.print_debug(f"LLM checker {checker.name} found {len(checker_findings)} findings")
+                        self.printer.print_debug(f"Using batch mode for {checker.name}")
+                    checker_findings = checker.check_files(files, self.printer)
                     findings.extend(checker_findings)
-                    self.stats.llm_calls += 1
-                except Exception as e:
-                    self.stats.add_error(f"LLM checker '{checker.name}' failed on {file_path}: {e}")
-        elif self.printer.debug:
-            self.printer.print_debug(f"Skipping LLM checkers (should_use_llm=False)")
+                    self.stats.llm_calls += 1  # One batch call
+                else:
+                    # Fallback: process each file individually
+                    if self.printer.debug:
+                        self.printer.print_debug(f"Checker {checker.name} doesn't support batch, using individual mode")
+                    for file_path, content in files:
+                        checker_findings = checker.check_file(file_path, content, self.printer)
+                        findings.extend(checker_findings)
+                        self.stats.llm_calls += 1
+            except Exception as e:
+                self.stats.add_error(f"LLM checker '{checker.name}' failed in batch mode: {e}")
 
         return findings
 
