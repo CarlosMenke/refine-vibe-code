@@ -180,12 +180,18 @@ def _set_nested_value(config: dict, keys: list, value: str) -> None:
 
 
 def _deep_merge(base: dict, update: dict) -> dict:
-    """Deep merge two dictionaries."""
+    """Deep merge two dictionaries.
+
+    Empty strings don't override non-empty values (allows global api_key to persist).
+    """
     result = base.copy()
 
     for key, value in update.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge(result[key], value)
+        elif value == "" and key in result and result[key]:
+            # Don't override non-empty values with empty strings
+            pass
         else:
             result[key] = value
 

@@ -101,10 +101,6 @@ class DangerousAILogicChecker(LLMBaseChecker):
         """Check if file contains AI/ML frameworks."""
         return self._has_ai_frameworks(content)
 
-    def _mock_analysis(self, file_path: Path, content: str) -> List[Finding]:
-        """Mock analysis for testing when LLM is not available."""
-        return self._fallback_pattern_check(file_path, content)
-
     def _create_analysis_prompt(self, file_path: Path, content: str, start_line: int = 1) -> str:
         """Create a focused prompt for dangerous AI/ML logic detection."""
         return f"""Analyze this Python code for dangerous AI/ML security vulnerabilities. Line numbers are prefixed (e.g., "  42| code").

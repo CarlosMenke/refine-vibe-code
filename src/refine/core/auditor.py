@@ -93,7 +93,7 @@ class Auditor:
             self.printer.print_debug(f"Running {len(llm_checkers)} LLM checkers in parallel")
 
         # Run LLM checkers in parallel
-        with ThreadPoolExecutor(max_workers=len(llm_checkers)) as executor:
+        with ThreadPoolExecutor(max_workers=max(1, len(llm_checkers))) as executor:
             # Submit all LLM checker tasks
             future_to_checker = {
                 executor.submit(self._run_single_llm_checker, checker, file_path, content): checker
@@ -197,7 +197,7 @@ class Auditor:
             self.printer.print_debug(f"Batch processing {len(files)} files with {len(llm_checkers)} LLM checkers")
 
         # Run batch checkers in parallel
-        with ThreadPoolExecutor(max_workers=len(llm_checkers)) as executor:
+        with ThreadPoolExecutor(max_workers=max(1, len(llm_checkers))) as executor:
             # Submit all batch checker tasks
             future_to_checker = {
                 executor.submit(self._run_batch_llm_checker, checker, files): checker

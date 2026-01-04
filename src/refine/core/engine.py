@@ -168,7 +168,7 @@ class ScanEngine:
         def run_llm_checkers():
             nonlocal llm_findings
             # Use ThreadPoolExecutor for LLM checkers
-            with ThreadPoolExecutor(max_workers=min(len(file_data), 10)) as executor:  # Limit workers to avoid overwhelming
+            with ThreadPoolExecutor(max_workers=max(1, min(len(file_data), 10))) as executor:  # Limit workers to avoid overwhelming
                 future_to_file = {}
                 for file_path, content in file_data:
                     # Skip files that will be processed in batch

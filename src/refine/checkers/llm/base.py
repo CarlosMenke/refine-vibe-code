@@ -124,9 +124,8 @@ class LLMBaseChecker(BaseChecker):
             # Get LLM provider
             provider = get_provider()
 
-            # If provider is not available, use mock analysis for testing
+            # If provider is not available, return empty findings
             if not provider.is_available():
-                findings.extend(self._mock_analysis(file_path, content))
                 return findings
 
             # Split large files into chunks to avoid response truncation
@@ -135,7 +134,7 @@ class LLMBaseChecker(BaseChecker):
 
             config = self._get_config()
             use_parallel = getattr(config.chunking, 'parallel_chunks', True) and len(chunks) > 1
-            max_workers = getattr(config.chunking, 'max_parallel_requests', 4)
+            max_workers = max(1, getattr(config.chunking, 'max_parallel_requests', 4))
 
             if use_parallel:
                 # Process chunks in parallel for faster scanning
@@ -225,9 +224,6 @@ class LLMBaseChecker(BaseChecker):
         try:
             provider = get_provider()
             if not provider.is_available():
-                # Fall back to individual file mock analysis
-                for file_path, content in files:
-                    findings.extend(self._mock_analysis(file_path, content))
                 return findings
 
             seen_issues = set()  # Track (file, line) to deduplicate
@@ -277,10 +273,6 @@ class LLMBaseChecker(BaseChecker):
 
     def _has_code_content(self, content: str) -> bool:
         """Quick check if file contains substantial code content."""
-        raise NotImplementedError
-
-    def _mock_analysis(self, file_path: Path, content: str) -> List[Finding]:
-        """Mock analysis for testing when LLM is not available."""
         raise NotImplementedError
 
     def _create_analysis_prompt(self, file_path: Path, content: str, start_line: int = 1) -> str:

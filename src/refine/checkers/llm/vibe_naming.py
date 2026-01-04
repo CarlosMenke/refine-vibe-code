@@ -332,12 +332,6 @@ Return {{"issues": []}} if no significant issues found."""
             )]
         )
 
-    def _mock_analysis(self, file_path: Path, content: str) -> List[Finding]:
-        """Mock analysis for testing when LLM is not available."""
-        # Vibe naming checker primarily relies on LLM analysis for nuanced naming issues
-        # Without LLM, we can't reliably detect naming/style issues
-        return []
-
     def _create_stacked_analysis_prompt(self, content: str) -> str:
         """Create prompt for analyzing stacked files."""
         return f"""Analyze these Python files for naming conventions and code style issues. Files are separated by "# === FILE: filename.py ===" markers.
