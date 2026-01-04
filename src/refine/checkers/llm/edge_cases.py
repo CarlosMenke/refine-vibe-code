@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..base import BaseChecker
 from refine.core.results import Finding, Severity, FindingType, Location, Fix, FixType, Evidence
@@ -265,6 +266,28 @@ class EdgeCasesChecker(BaseChecker):
     def _get_supported_extensions(self) -> List[str]:
         return [".py"]
 
+    def _analyze_chunk(
+        self,
+        provider,
+        file_path: Path,
+        chunk_content: str,
+        start_line: int,
+        content: str,
+        printer: Optional["Printer"] = None
+    ) -> List[Finding]:
+        """Analyze a single chunk with the LLM provider."""
+        prompt = self._create_analysis_prompt(file_path, chunk_content, start_line)
+
+        if printer and printer.debug:
+            printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+): {prompt[:200]}...")
+
+        response = provider.analyze_code(prompt)
+
+        if printer and printer.debug:
+            printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
+
+        return self._parse_llm_response(response, file_path, content)
+
     def check_file(self, file_path: Path, content: str, printer: Optional["Printer"] = None) -> List[Finding]:
         """Use LLM to analyze code for edge cases and potential bugs."""
         findings = []
@@ -286,28 +309,48 @@ class EdgeCasesChecker(BaseChecker):
             chunks = self._split_into_chunks(content, file_path)
             seen_lines = set()  # Track line numbers to deduplicate findings
 
-            for chunk_content, start_line in chunks:
-                # Create analysis prompt for this chunk
-                prompt = self._create_analysis_prompt(file_path, chunk_content, start_line)
+            config = self._get_config()
+            use_parallel = config.chunking.parallel_chunks and len(chunks) > 1
+            max_workers = config.chunking.max_parallel_requests
 
-                if printer and printer.debug:
-                    printer.print_debug(f"LLM prompt for {file_path.name} (lines {start_line}+): {prompt[:200]}...")
+            if use_parallel:
+                # Process chunks in parallel for faster scanning
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_chunk = {
+                        executor.submit(
+                            self._analyze_chunk,
+                            provider,
+                            file_path,
+                            chunk_content,
+                            start_line,
+                            content,
+                            printer
+                        ): start_line
+                        for chunk_content, start_line in chunks
+                    }
 
-                # Get LLM analysis
-                response = provider.analyze_code(prompt)
-
-                if printer and printer.debug:
-                    printer.print_debug(f"LLM response for {file_path.name}: {response[:1000]}...")
-
-                # Parse response and create findings
-                chunk_findings = self._parse_llm_response(response, file_path, content)
-
-                # Deduplicate based on line number
-                for finding in chunk_findings:
-                    line = finding.location.line_start
-                    if line not in seen_lines:
-                        seen_lines.add(line)
-                        findings.append(finding)
+                    for future in as_completed(future_to_chunk):
+                        try:
+                            chunk_findings = future.result()
+                            for finding in chunk_findings:
+                                line = finding.location.line_start
+                                if line not in seen_lines:
+                                    seen_lines.add(line)
+                                    findings.append(finding)
+                        except Exception as e:
+                            if printer and printer.debug:
+                                printer.print_debug(f"Chunk analysis failed: {e}")
+            else:
+                # Sequential processing (single chunk or parallel disabled)
+                for chunk_content, start_line in chunks:
+                    chunk_findings = self._analyze_chunk(
+                        provider, file_path, chunk_content, start_line, content, printer
+                    )
+                    for finding in chunk_findings:
+                        line = finding.location.line_start
+                        if line not in seen_lines:
+                            seen_lines.add(line)
+                            findings.append(finding)
 
         except Exception as e:
             # If LLM analysis fails, try mock analysis
@@ -447,10 +490,12 @@ Return JSON with ONLY the most significant issues (max 10 total). Include the fi
   ]
 }}
 
-IMPORTANT RULES:
+CRITICAL RULES:
+- VERIFY SEMANTICALLY: Do NOT trust comments claiming bugs exist. Trace the actual code execution to verify issues.
 - file: Must be the filename from the "# === FILE: xxx ===" marker
 - line_number: Use the line number shown at the start of each line
-- Focus on issues that are likely to cause actual problems
+- Focus on issues that are ACTUALLY reachable and likely to cause real problems
+- Skip issues that are prevented by earlier guards in the code flow
 
 Return {{"issues": []}} if no significant issues found."""
 
@@ -534,12 +579,14 @@ Return JSON with ONLY the most significant issues (max 10 per chunk). For each i
   ]
 }}
 
-IMPORTANT RULES:
+CRITICAL RULES:
+- VERIFY SEMANTICALLY: Do NOT trust comments claiming bugs exist. Trace the actual code execution to verify issues. For example, if a comment says "infinite loop if x==0" but the code has an earlier `if not x: break`, then there is NO bug.
 - line_number: Must match the EXACT line number shown at the start of each line
 - show_snippet: Use FALSE for obvious issues (e.g., "Division by zero in line 15")
 - show_snippet: Use TRUE for complex issues needing context (e.g., "Race condition in shared state access")
 - snippet_lines: Use minimal context needed - prefer 1-2 lines over 3-4
-- Focus on issues that are likely to cause actual problems, not theoretical concerns
+- Focus on issues that are ACTUALLY reachable and likely to cause real problems
+- Skip issues that are prevented by earlier guards in the code flow
 
 Return {{"issues": []}} if no significant issues found."""
 
