@@ -747,11 +747,13 @@ def dangerous_model_sharing_threads():
 
     model = torch.load("model.pth")
     results = []
+    lock = threading.Lock()  # Add thread synchronization
 
     def inference_worker(input_data):
         # All threads share the same model instance
-        # No synchronization - race conditions possible
-        result = model(input_data)
+        # Now with proper synchronization - race conditions prevented
+        with lock:  # Acquire lock before using model
+            result = model(input_data)
         results.append(result)
 
     threads = []
