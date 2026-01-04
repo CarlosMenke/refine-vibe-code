@@ -6,11 +6,147 @@ from typing import Optional
 
 from rich.syntax import Syntax
 from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt, Confirm
 from pygments.lexers import get_lexer_by_name
 
-from .config.loader import load_config
+from .config.loader import load_config, save_config, find_global_config_file
+from .config.schema import RefineConfig
 from .core.engine import ScanEngine
 from .ui.printer import Printer
+
+
+# Model options for each provider (first is default/recommended)
+PROVIDER_MODELS = {
+    "google": [
+        ("gemini-2.0-flash-exp", "Latest experimental, fast"),
+        ("gemini-2.0-pro-exp", "Most capable Gemini 2"),
+        ("gemini-2.0-flash", "Stable fast model"),
+        ("gemini-2.5-pro-exp-03-25", "Latest and most capable"),
+    ],
+    "openai": [
+        ("gpt-4o-mini", "Fast and cost-effective"),
+        ("gpt-4o", "Most capable GPT-4"),
+        ("gpt-5", "Latest and most capable"),
+        ("o1-mini", "Reasoning model, slower but thorough"),
+    ],
+    "claude": [
+        ("claude-sonnet-4-20250514", "Latest Sonnet, best balance"),
+        ("claude-3-5-sonnet-20241022", "Previous Sonnet, proven"),
+        ("claude-3-5-haiku-20241022", "Fast and cost-effective"),
+        ("claude-opus-4-20250514", "Most capable, premium"),
+    ],
+}
+
+# Default config path
+DEFAULT_CONFIG_PATH = "~/.config/refine/refine.toml"
+
+GOOGLE_AI_STUDIO_URL = "https://aistudio.google.com/apikey"
+
+
+def _get_global_config_path() -> Path:
+    """Get the path for global config, creating directory if needed."""
+    global_path = find_global_config_file()
+    if global_path is None:
+        config_dir = Path.home() / ".config" / "refine"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        return config_dir / "refine.toml"
+    return global_path
+
+
+def interactive_api_setup(console: Console) -> Optional[RefineConfig]:
+    """Interactive setup for API key configuration.
+
+    Returns the updated config if successful, None if cancelled.
+    """
+    console.print()
+    console.print(Panel.fit(
+        "[bold cyan]API Key Setup[/bold cyan]\n\n"
+        "To use LLM-based code analysis, you need an API key from one of the supported providers.",
+        border_style="cyan"
+    ))
+    console.print()
+
+    # Provider selection
+    console.print("[bold]Select your LLM provider:[/bold]")
+    console.print("  [cyan]1[/cyan]) Google Gemini [dim](Recommended - high free tier limits)[/dim]")
+    console.print("  [cyan]2[/cyan]) OpenAI")
+    console.print("  [cyan]3[/cyan]) Anthropic Claude")
+    console.print()
+
+    provider_choice = Prompt.ask(
+        "Enter choice",
+        choices=["1", "2", "3"],
+        default="1"
+    )
+
+    provider_map = {"1": "google", "2": "openai", "3": "claude"}
+    provider = provider_map[provider_choice]
+    models = PROVIDER_MODELS[provider]
+
+    # Show API key creation URL
+    console.print()
+    if provider == "google":
+        console.print(f"[dim]Get your free API key at:[/dim] [link={GOOGLE_AI_STUDIO_URL}]{GOOGLE_AI_STUDIO_URL}[/link]")
+        console.print("[dim]Google offers generous free tier limits for Gemini models.[/dim]")
+    elif provider == "openai":
+        console.print("[dim]Get your API key at:[/dim] [link=https://platform.openai.com/api-keys]https://platform.openai.com/api-keys[/link]")
+    elif provider == "claude":
+        console.print("[dim]Get your API key at:[/dim] [link=https://console.anthropic.com/settings/keys]https://console.anthropic.com/settings/keys[/link]")
+    console.print()
+
+    # Model selection
+    console.print("[bold]Select model:[/bold]")
+    for i, (model_name, description) in enumerate(models, 1):
+        if i == 1:
+            console.print(f"  [cyan]{i}[/cyan]) {model_name} [dim]({description})[/dim] [green](Recommended)[/green]")
+        else:
+            console.print(f"  [cyan]{i}[/cyan]) {model_name} [dim]({description})[/dim]")
+    console.print(f"  [cyan]c[/cyan]) Custom model name")
+    console.print()
+
+    model_choice = Prompt.ask(
+        "Enter choice",
+        choices=[str(i) for i in range(1, len(models) + 1)] + ["c"],
+        default="1"
+    )
+
+    if model_choice == "c":
+        model = Prompt.ask("Enter model name", default=models[0][0])
+    else:
+        model = models[int(model_choice) - 1][0]
+
+    # API key input
+    api_key = Prompt.ask("API key")
+
+    if not api_key.strip():
+        console.print("[yellow]Setup cancelled - no API key provided.[/yellow]")
+        return None
+
+    # Load existing config or create new
+    global_config_path = _get_global_config_path()
+    try:
+        config = load_config(global_config_path if global_config_path.exists() else None)
+    except Exception:
+        config = RefineConfig()
+
+    # Update config
+    config.llm.provider = provider
+    config.llm.model = model
+    config.llm.api_key = api_key.strip()
+
+    # Save to global config
+    save_config(config, global_config_path)
+
+    console.print()
+    console.print(f"[green]✓[/green] Configuration saved to [cyan]{global_config_path}[/cyan]")
+    console.print()
+    console.print("[dim]To change these settings later, run:[/dim]")
+    console.print("  [cyan]refine --add-api-key[/cyan]")
+    console.print(f"[dim]Or edit directly:[/dim] [cyan]{DEFAULT_CONFIG_PATH}[/cyan]")
+    console.print()
+
+    return config
 
 
 def _print_syntax_highlighted_code_example(console: "Console") -> None:
@@ -41,8 +177,20 @@ app = typer.Typer(
 
 
 @app.callback(invoke_without_command=True)
-def main_callback(ctx: typer.Context):
+def main_callback(
+    ctx: typer.Context,
+    add_api_key: bool = typer.Option(
+        False,
+        "--add-api-key",
+        help="Configure or update your LLM API key",
+    ),
+):
     """Show help when no command is provided."""
+    if add_api_key:
+        console = Console()
+        interactive_api_setup(console)
+        raise typer.Exit()
+
     if ctx.invoked_subcommand is None:
         # Print the standard help
         typer.echo(ctx.get_help())
@@ -160,13 +308,25 @@ def scan(
         provider = get_provider(config_data)
         llm_available = provider.is_available()
 
+        # If LLM is not available and we need it, offer interactive setup
+        if not llm_available and not classical_only:
+            console = Console()
+            console.print()
+            console.print("[yellow]No API key configured for LLM-based analysis.[/yellow]")
+            console.print()
+
+            if Confirm.ask("Would you like to set up an API key now?", default=True):
+                updated_config = interactive_api_setup(console)
+                if updated_config:
+                    # Reload config with new API key
+                    config_data = load_config(config, path)
+                    provider = get_provider(config_data)
+                    llm_available = provider.is_available()
+
         if llm_only and not llm_available:
             typer.echo(
-                "❌ Error: LLM-only mode requested but no LLM provider is available.\n"
-                "\nTo use LLM-based checkers, you need to configure an LLM provider:\n"
-                "\n1. For OpenAI: Set OPENAI_API_KEY environment variable or add api_key to refine.toml\n"
-                "2. For Google Gemini: Set GOOGLE_API_KEY environment variable, set provider = \"google\" and model = \"gemini-2.0-flash-exp\" in refine.toml\n"
-                "\nRun 'uv run refine init' to generate a configuration file.",
+                "LLM-only mode requested but no LLM provider is configured.\n"
+                "Run 'refine --add-api-key' to configure your API key.",
                 err=True
             )
             raise typer.Exit(code=1)
@@ -220,7 +380,6 @@ def init(
             global_path = find_global_config_file()
             if global_path is None:
                 # Create the directory if it doesn't exist
-                import os
                 config_dir = Path.home() / ".config" / "refine"
                 config_dir.mkdir(parents=True, exist_ok=True)
                 output = config_dir / "refine.toml"
