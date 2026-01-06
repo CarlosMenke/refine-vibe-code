@@ -68,53 +68,10 @@ For the best results, configure an LLM provider:
 If you want to use a free LLM, with high usage limits and good results, we recommend google gemini-2-flash model. Get API keys here:
 https://aistudio.google.com/api-keys
 
-### Model Recommendations
-
-Choose the right model for your needs:
-
-**OpenAI Models:**
-- `gpt-4o` - Latest GPT-4 optimized model, excellent for code analysis
-- `gpt-4o-mini` - Cost-effective GPT-4 model, fast and reliable
-- `gpt-4-turbo` - Previous generation, good balance of speed/cost
-- `gpt-3.5-turbo` - Fastest and cheapest, good for simple checks
-
-**Google Gemini Models:**
-- `gemini-2.0-flash-exp` - Latest experimental model, most advanced
-- `gemini-1.5-pro` - Stable production model, good performance
-- `gemini-1.5-flash` - Fast and cost-effective model
-
-**Anthropic Claude Models:**
-- `claude-3-5-sonnet-20241022` - Latest Claude model, excellent for code analysis
-- `claude-3-5-haiku-20241022` - Fast and cost-effective model
-
-**Google Gemini**:
-```toml
-# In your ~/.config/refine/refine.toml
-[llm]
-provider = "google" # or openai, claude
-model = "gemini-2.0-flash-exp"
-api_key = "your-google-api-key"
-```
-
-**OpenAI**:
-Get your API key from: https://platform.openai.com/api-keys
-```toml
-# In your ~/.config/refine/refine.toml
-[llm]
-provider = "openai"
-model = "gpt-4o"  # Recommended: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
-api_key = "sk-your-openai-api-key-here"
-```
-
-**Anthropic Claude**:
-Get your API key from: https://console.anthropic.com/
-```toml
-# In your ~/.config/refine/refine.toml
-[llm]
-provider = "claude"
-model = "claude-3-5-sonnet-20241022"
-api_key = "sk-ant-your-claude-api-key-here"
-```
+### Manual configuration
+You can also adjust the behavior of refine manually.
+You have to run refine (once) and then you can edit the config at `~/config/refine/refine.toml`
+For available Models look at the config.
 
 ## 🚀 Usage Examples
 
