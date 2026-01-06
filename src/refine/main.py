@@ -198,7 +198,11 @@ def main_callback(
         # Print the output format example with syntax highlighting
         console = Console(width=120)
 
-        console.print("\n[dim]Output Format Example:[/dim]")
+        console.print("\n[dim]Example command:[/dim]")
+        console.print("  [cyan]refine scan src/[/cyan]")
+        console.print()
+
+        console.print("[dim]Output Format Example:[/dim]")
 
         # Create styled text for the example output line
         from rich.text import Text
@@ -229,7 +233,7 @@ def main_callback(
 
 @app.command()
 def scan(
-    path: Path = typer.Argument(
+    dir: Path = typer.Argument(
         Path("."),
         help="Path to the directory or file to scan",
         exists=True,
@@ -284,10 +288,10 @@ def scan(
         help="Enable debug output with detailed analysis information",
     ),
 ) -> None:
-    """Scan code for AI-generated patterns and bad coding practices."""
+    """Scan DIR for AI-generated patterns and bad coding practices."""
     try:
         # Load configuration
-        config_data = load_config(config, path)
+        config_data = load_config(config, dir)
 
         # Override config with CLI options if provided
         if include_patterns:
@@ -319,7 +323,7 @@ def scan(
                 updated_config = interactive_api_setup(console)
                 if updated_config:
                     # Reload config with new API key
-                    config_data = load_config(config, path)
+                    config_data = load_config(config, dir)
                     provider = get_provider(config_data)
                     llm_available = provider.is_available()
 
@@ -333,15 +337,15 @@ def scan(
         elif not classical_only and not llm_available and any("quality" in checker or "vibe" in checker for checker in config_data.checkers.enabled):
             # Print beautiful warning about falling back to mock analysis
             # Initialize printer temporarily for this warning
-            temp_printer = Printer(output_format="rich", verbose=False, debug=False, root_path=path)
+            temp_printer = Printer(output_format="rich", verbose=False, debug=False, root_path=dir)
             temp_printer.print_llm_warning_box()
 
         # Initialize printer
-        printer = Printer(output_format=output_format, verbose=verbose, debug=debug, root_path=path)
+        printer = Printer(output_format=output_format, verbose=verbose, debug=debug, root_path=dir)
 
         # Initialize and run scan engine
         engine = ScanEngine(config=config_data, printer=printer)
-        results = engine.scan(path)
+        results = engine.scan(dir)
 
         # Print results
         printer.print_results(results, fix=fix)
