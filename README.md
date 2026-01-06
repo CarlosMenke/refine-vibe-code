@@ -23,7 +23,7 @@ uv tool update-shell
 
 ### homebrew
 ```bash
-brew tab CarlosMenke/homebrew-tab
+brew tap CarlosMenke/homebrew-tap
 brew install refine-vibe-code
 ```
 
@@ -54,19 +54,12 @@ pip install .
 ## Configuration Examples
 
 ### Config generation
-Global config, for all projects:
+If you run refine for the first time, it will auto generate the config
 ```bash
 # Generate global config
-refine init --global
-
-# Location: ~/.config/refine/refine.toml
-```
-```bash
-# Generate project config in current directory. Named refine.toml
-refine init
-
-# Use custom config file path
-refine scan --config my_custom_config.toml
+refine
+# To use it
+refine scan DIR_NAME
 ```
 
 ### LLM Integration (for deeper analysis)
