@@ -268,6 +268,8 @@ timeout = {self.llm.timeout}
 # model = "gemini-2.0-pro-exp"        # Most capable Gemini 2
 # model = "gemini-2.0-flash"          # Stable fast model
 # model = "gemini-2.5-pro-exp-03-25"  # Latest and most capable
+# model = "gemini-1.5-pro"            # Stable production model, good performance
+# model = "gemini-1.5-flash"          # Fast and cost-effective model
 #
 # OpenAI Models:
 # provider = "openai"
@@ -275,6 +277,8 @@ timeout = {self.llm.timeout}
 # model = "gpt-4o"                    # Most capable GPT-4
 # model = "gpt-5"                     # Latest and most capable
 # model = "o1-mini"                   # Reasoning model, slower but thorough
+# model = "gpt-4-turbo"               # Previous generation, good balance
+# model = "gpt-3.5-turbo"             # Fastest and cheapest, good for simple checks
 #
 # Anthropic Claude Models:
 # provider = "claude"
