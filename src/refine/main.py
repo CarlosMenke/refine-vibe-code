@@ -1,5 +1,6 @@
 """Main CLI entry point for Refine Vibe Code."""
 
+import os
 import typer
 from pathlib import Path
 from typing import Optional
@@ -48,7 +49,12 @@ def _get_global_config_path() -> Path:
     """Get the path for global config, creating directory if needed."""
     global_path = find_global_config_file()
     if global_path is None:
-        config_dir = Path.home() / ".config" / "refine"
+        # Respect XDG_CONFIG_HOME if set, otherwise use ~/.config
+        xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        if xdg_config:
+            config_dir = Path(xdg_config) / "refine"
+        else:
+            config_dir = Path.home() / ".config" / "refine"
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / "refine.toml"
     return global_path
@@ -384,7 +390,12 @@ def init(
             global_path = find_global_config_file()
             if global_path is None:
                 # Create the directory if it doesn't exist
-                config_dir = Path.home() / ".config" / "refine"
+                # Respect XDG_CONFIG_HOME if set, otherwise use ~/.config
+                xdg_config = os.environ.get("XDG_CONFIG_HOME")
+                if xdg_config:
+                    config_dir = Path(xdg_config) / "refine"
+                else:
+                    config_dir = Path.home() / ".config" / "refine"
                 config_dir.mkdir(parents=True, exist_ok=True)
                 output = config_dir / "refine.toml"
             else:
